@@ -325,14 +325,25 @@ except ImportError:
 
 
 try:
+    from .constants import NO_LIMIT_LIMITER_DESCRIPTION, NO_LIMIT_LIMITER_NAME
     from .models import LimiterType
+
     @admin.register(LimiterType)
     class LimiterTypeAdmin(admin.ModelAdmin):
-        list_display = ('content_type',)
-        search_fields = ('name',)
+        list_display = ("content_type",)
+        search_fields = ("name",)
+
         def save_model(self, request, obj, form, change):
-            obj.name = obj.content_type.model_class()._meta.verbose_name
-            obj.description = obj.content_type.model_class().__doc__
+            if obj.content_type:
+                model_class = obj.content_type.model_class()
+                if model_class:
+                    obj.name = model_class._meta.verbose_name
+                    obj.description = model_class.__doc__ or obj.description
+            else:
+                if not obj.name:
+                    obj.name = NO_LIMIT_LIMITER_NAME
+                if not obj.description:
+                    obj.description = NO_LIMIT_LIMITER_DESCRIPTION
             super().save_model(request, obj, form, change)
 
 
@@ -391,17 +402,6 @@ try:
             label="Limiter type",
             help_text="Select the limiter type to apply to selected endpoints.",
         )
-        NO_LIMIT_CHOICES = (
-            ("", "Leave \"No limit\" unchanged"),
-            ("true", "Enable \"No limit\""),
-            ("false", "Disable \"No limit\""),
-        )
-        no_limit_action = forms.ChoiceField(
-            choices=NO_LIMIT_CHOICES,
-            required=False,
-            label="No limit",
-            help_text="Choose whether to enable or disable the \"No limit\" flag on the selected endpoints.",
-        )
         ad_groups = forms.ModelMultipleChoiceField(
             queryset=ADGroupAssociation.objects.none(),
             required=False,
@@ -439,22 +439,13 @@ try:
 
         @admin.action(description="Set limiter type for selected endpoints")
         def bulk_set_limiter_type(self, request, queryset):
-            limiter_type_id = request.POST.get('limiter_type')
-            no_limit_action = request.POST.get('no_limit_action') or ""
-            ad_group_ids = request.POST.getlist('ad_groups')
+            limiter_type_id = request.POST.get("limiter_type")
+            ad_group_ids = request.POST.getlist("ad_groups")
 
-            if no_limit_action == "true" and limiter_type_id:
+            if not (limiter_type_id or ad_group_ids):
                 self.message_user(
                     request,
-                    "Cannot enable \"No limit\" while also setting a limiter type. Choose one action.",
-                    level=messages.ERROR,
-                )
-                return None
-
-            if not (limiter_type_id or no_limit_action or ad_group_ids):
-                self.message_user(
-                    request,
-                    "Select a limiter type, choose a \"No limit\" option, or pick AD groups to add.",
+                    "Select a limiter type or pick AD groups to add.",
                     level=messages.ERROR,
                 )
                 return None
@@ -473,27 +464,12 @@ try:
                     except LimiterType.DoesNotExist:
                         self.message_user(request, "Selected limiter type no longer exists.", level=messages.ERROR)
                         return None
-                    updated = queryset.update(limiter_type=lt, no_limit=False)
+                    updated = queryset.update(limiter_type=lt)
                     self.message_user(
                         request,
                         _("Updated limiter type for %(count)d endpoint(s).") % {"count": updated},
                         level=messages.SUCCESS,
                     )
-
-            if no_limit_action == "true":
-                updated = queryset.update(no_limit=True, limiter_type=None)
-                self.message_user(
-                    request,
-                    _('Enabled "No limit" for %(count)d endpoint(s).') % {"count": updated},
-                    level=messages.SUCCESS,
-                )
-            elif no_limit_action == "false":
-                updated = queryset.update(no_limit=False)
-                self.message_user(
-                    request,
-                    _('Disabled "No limit" for %(count)d endpoint(s).') % {"count": updated},
-                    level=messages.SUCCESS,
-                )
 
             if ad_group_ids:
                 groups = list(ADGroupAssociation.objects.filter(pk__in=ad_group_ids))

@@ -61,10 +61,9 @@ class HibpConfig(AppConfig):
                 desired_paths.add(f"{normalized}/")
 
         try:
-            updated = (
-                Endpoint.objects.filter(path__in=desired_paths, limiter_type__isnull=True, no_limit=False)
-                .update(limiter_type=limiter_type)
-            )
+            updated = Endpoint.objects.filter(
+                path__in=desired_paths, limiter_type__isnull=True
+            ).update(limiter_type=limiter_type)
         except (OperationalError, ProgrammingError, ConnectionDoesNotExist):
             logger.info("Unable to update HIBP endpoints; database not ready")
             return

@@ -18,6 +18,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Tuple
 
+from .constants import NO_LIMIT_LIMITER_NAME
+
 logger = logging.getLogger(__name__)
 
 
@@ -1297,6 +1299,13 @@ class LimiterType(models.Model):
 
     def __str__(self):
         return self.name
+
+    @property
+    def is_no_limit(self) -> bool:
+        return (
+            self.content_type_id is None
+            and (self.name or "").strip().lower() == NO_LIMIT_LIMITER_NAME.lower()
+        )
     
 
 
@@ -1307,11 +1316,15 @@ class Endpoint(BaseModel):
     method = models.CharField(max_length=6, blank=True, default='')
     ad_groups = models.ManyToManyField('ADGroupAssociation', related_name='endpoints', blank=True)
     limiter_type = models.ForeignKey(LimiterType, on_delete=models.CASCADE, null=True, blank=True)
-    no_limit = models.BooleanField(default=False, null=False, blank=False)
     
 
     def __str__(self):
         return f"{self.method} {self.path}" if self.method else self.path
+
+    @property
+    def allows_unrestricted_access(self) -> bool:
+        limiter = self.limiter_type
+        return limiter.is_no_limit if limiter else False
 
     def validate_and_get_ad_groups_for_user_access(self, user, endpoint_path):
         # Fetch the endpoint instance based on the provided path.

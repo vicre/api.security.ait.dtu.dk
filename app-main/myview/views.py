@@ -49,6 +49,7 @@ from .models import (
     MFAResetAttempt,
     MFAResetRecord,
 )
+from .constants import NO_LIMIT_LIMITER_NAME
 from active_directory.services import execute_active_directory_query
 
 logger = logging.getLogger(__name__)
@@ -363,7 +364,7 @@ class BaseView(View):
                 'path': endpoint.path,
                 'ad_groups': filtered_groups,
                 'limiter_type': limiter_label,
-                'no_limit': endpoint.no_limit
+                'unrestricted_access': endpoint.allows_unrestricted_access,
             })
 
         # Fetch Limiter Types that the user is associated with
@@ -373,12 +374,22 @@ class BaseView(View):
         for limiter_type in LimiterType.objects.all():
             content_type = limiter_type.content_type
 
+            if content_type is None:
+                limiter_type_info = {
+                    'name': limiter_type.name,
+                    'description': limiter_type.description,
+                    'model': None,
+                    'canonical_names': None,
+                }
+                associated_limiter_types.append(limiter_type_info)
+                continue
+
             if content_type.model == 'iplimiter':
                 limiters = IPLimiter.objects.filter(ad_groups__in=user_ad_group_ids).distinct()
             elif content_type.model == 'adorganizationalunitlimiter':
                 limiters = ADOrganizationalUnitLimiter.objects.filter(ad_groups__in=user_ad_group_ids).distinct()
             else:
-                limiters = []
+                limiters = IPLimiter.objects.none()
 
             if limiters.exists():
                 limiter_type_info = {
@@ -668,7 +679,11 @@ class MFAResetPageView(BaseView):
             return False
 
         endpoints = (
-            Endpoint.objects.filter(ad_groups__in=user_group_ids, no_limit=True)
+            Endpoint.objects.filter(
+                ad_groups__in=user_group_ids,
+                limiter_type__content_type__isnull=True,
+                limiter_type__name__iexact=NO_LIMIT_LIMITER_NAME,
+            )
             .distinct()
         )
         for endpoint in endpoints:

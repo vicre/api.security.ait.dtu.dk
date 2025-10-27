@@ -201,7 +201,7 @@ class AccessControlMiddleware(MiddlewareMixin):
         return Endpoint.objects.filter(ad_groups__in=user_ad_groups)
 
     def is_user_authorized_for_resource(self, endpoint: Endpoint, request) -> bool:
-        if endpoint.no_limit:
+        if endpoint.allows_unrestricted_access:
             return True
 
         if request.user.username == "vicre":

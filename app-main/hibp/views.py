@@ -57,24 +57,45 @@ class BaseHIBPView(SecuredAPIView):
         except KeyError as exc:  # pragma: no cover - defensive
             raise RuntimeError(f"Missing URL kwarg for template substitution: {exc}") from exc
 
+    @staticmethod
+    def _extract_api_key(request) -> str | None:
+        auth_header = request.META.get("HTTP_AUTHORIZATION", "")
+        if isinstance(auth_header, str) and auth_header.lower().startswith("token "):
+            candidate = auth_header.split(None, 1)[1].strip()
+            if candidate:
+                return candidate
+
+        auth = getattr(request, "auth", None)
+        key = getattr(auth, "key", None)
+        if isinstance(key, str) and key:
+            return key
+
+        if isinstance(auth, str) and auth:
+            return auth
+
+        return None
+
     def _proxy_request(self, request, **kwargs: Any) -> Response:
         params = self._build_params(request)
         path = self._resolve_path(**kwargs)
 
         headers: Dict[str, str] = dict(self.extra_headers or {})
         if self.require_api_key:
+            api_key = self._extract_api_key(request)
+            if not api_key:
+                return Response(
+                    {"detail": "API token required."},
+                    status=status.HTTP_401_UNAUTHORIZED,
+                )
+            headers["hibp-api-key"] = api_key
+
             service_key = getattr(settings, "HIBP_CERT_API_KEY", None) or getattr(
                 settings, "HIBP_API_KEY", None
             )
             if isinstance(service_key, str):
                 service_key = service_key.strip()
-            if not service_key:
-                logger.error("HIBP service API key missing; set HIBP_CERT_API_KEY or HIBP_API_KEY")
-                return Response(
-                    {"detail": "HIBP backend is not configured."},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                )
-            headers["hibp-api-key"] = service_key
+            if service_key:
+                headers["hibp-service-api-key"] = service_key
 
         try:
             service_response = HIBPClient.get(

@@ -77,9 +77,9 @@ if Endpoint is not None:
         if not created:
             return
 
-        if instance.no_limit:
+        if instance.allows_unrestricted_access:
             logger.debug(
-                "Skipping HIBP limiter assignment for %s because 'no_limit' is enabled",
+                "Skipping HIBP limiter assignment for %s because unrestricted access is enabled",
                 instance.path,
             )
             return

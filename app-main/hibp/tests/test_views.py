@@ -111,4 +111,4 @@ class HibpLimiterSignalTests(TestCase):
         endpoint.refresh_from_db()
 
         self.assertEqual(endpoint.limiter_type_id, self.limiter_type.pk)
-        self.assertFalse(endpoint.no_limit)
+        self.assertFalse(endpoint.allows_unrestricted_access)

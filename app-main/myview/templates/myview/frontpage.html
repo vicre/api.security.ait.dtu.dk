@@ -81,7 +81,7 @@
                             {% endcomment %}
                         <!-- </td> -->
                         <td>{{ endpoint.limiter_type }}</td>
-                        <td>{{ endpoint.no_limit|yesno:"Yes,No" }}</td> <!-- Displays 'Yes' if no_limit is True, 'No' otherwise -->
+                        <td>{{ endpoint.unrestricted_access|yesno:"Yes,No" }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
