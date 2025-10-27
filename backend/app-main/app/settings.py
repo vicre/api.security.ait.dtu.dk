@@ -128,6 +128,7 @@ candidate_env_paths.extend(
     [
         PROJECT_ROOT / ".env",
         PROJECT_ROOT / ".devcontainer" / ".env",
+        PROJECT_ROOT.parent / ".devcontainer" / ".env",
     ]
 )
 

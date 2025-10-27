@@ -3,14 +3,26 @@
 # this script runs first time when container is created
 echo "running postCreateCommand.sh"
 
-# Resolve workspace path provided by the devcontainer runtime (falls back to /app)
-workspace_dir=${REMOTE_CONTAINERS_WORKSPACE_FOLDER:-/app}
+# Resolve workspace path provided by the devcontainer runtime (falls back to /workspace)
+workspace_dir=${REMOTE_CONTAINERS_WORKSPACE_FOLDER:-/workspace}
+backend_dir="$workspace_dir/backend"
 venv_pip="/usr/src/venvs/app-main/bin/pip"
-requirements_target="$workspace_dir/app-main/requirements.txt"
+requirements_target="$backend_dir/app-main/requirements.txt"
 
-if [ ! -d "$workspace_dir" ]; then
-    echo "Error: workspace directory '$workspace_dir' does not exist."
+if [ ! -d "$workspace_dir" ] || [ ! -d "$backend_dir" ]; then
+    echo "Error: workspace directory '$workspace_dir' or backend directory '$backend_dir' does not exist."
     exit 1
+fi
+
+# Ensure compatibility path for legacy scripts
+if [ ! -e /usr/src/project ]; then
+    ln -s "$workspace_dir" /usr/src/project
+elif [ -L /usr/src/project ]; then
+    current_target=$(readlink /usr/src/project)
+    if [ "$current_target" != "$workspace_dir" ]; then
+        rm /usr/src/project
+        ln -s "$workspace_dir" /usr/src/project
+    fi
 fi
 
 # store current pwd into a variable
@@ -175,7 +187,7 @@ else
     python_cmd="python"
 fi
 
-django_dir="$workspace_dir/app-main"
+django_dir="$backend_dir/app-main"
 if [ -d "$django_dir" ] && [ -f "$django_dir/manage.py" ]; then
     echo "Running Django migrations..."
     cd "$django_dir"

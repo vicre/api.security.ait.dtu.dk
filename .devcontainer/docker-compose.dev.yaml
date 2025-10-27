@@ -4,7 +4,7 @@
 services:
   web:
     build:
-      context: ..
+      context: ../backend
       dockerfile: Dockerfile
       target: development
     image: dtuait/api-security-ait-dtu-dk-app-main:dev-latest
@@ -13,7 +13,7 @@ services:
       - ./.env
     restart: always
     tty: true
-    working_dir: /app/app-main
+    working_dir: /workspace/backend/app-main
     depends_on:
       db:
         condition: service_healthy
@@ -50,8 +50,8 @@ services:
       DJANGO_MIGRATE: "false"
       DJANGO_COLLECTSTATIC: "false"
     volumes:
-      - ..:/app
-      - ../shared-project-data:/mnt/shared-project-data
+      - ../:/workspace
+      - ../backend/shared-project-data:/mnt/shared-project-data
       - static_data:/data/static
       - media_data:/data/media
     networks:
