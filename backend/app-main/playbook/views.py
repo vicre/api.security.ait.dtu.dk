@@ -1,16 +1,17 @@
 from rest_framework import viewsets
 from rest_framework.response import Response
 from datetime import datetime
-from rest_framework.authentication import TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
 from graph.services import execute_hunting_query
 import pytz
+from utils.authentication import AzureAdTokenAuthentication
+from rest_framework.authentication import TokenAuthentication
 
 
 class MyMFARejectedByUser(viewsets.ViewSet):
 
     # require authentication
-    authentication_classes = [TokenAuthentication]  # Require token authentication for this view
+    authentication_classes = [AzureAdTokenAuthentication, TokenAuthentication]  # Require token authentication for this view
     permission_classes = [IsAuthenticated]  # Require authenticated user for this view
 
     def get_email(self, request, *args, **kwargs):

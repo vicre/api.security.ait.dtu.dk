@@ -10,10 +10,11 @@ from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from ldap3 import ALL_ATTRIBUTES
 from rest_framework import status
-from rest_framework.authentication import TokenAuthentication
 from rest_framework.response import Response
 
 from utils.api import SecuredAPIView
+from utils.authentication import AzureAdTokenAuthentication
+from rest_framework.authentication import TokenAuthentication
 
 from .services import (
     execute_active_directory_query,
@@ -24,7 +25,7 @@ from .services import (
 class ActiveDirectoryQueryAssistantView(SecuredAPIView):
     """Assist in building Active Directory queries from natural language."""
 
-    authentication_classes = [TokenAuthentication]
+    authentication_classes = [AzureAdTokenAuthentication, TokenAuthentication]
 
     header_parameter = openapi.Parameter(
         "Authorization",

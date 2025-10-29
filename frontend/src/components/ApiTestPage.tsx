@@ -46,8 +46,8 @@ const ApiTestPage: React.FC<ApiTestPageProps> = ({ accessToken, onClose }) => {
     setResponse(null);
 
     try {
-      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-      const fullUrl = `${apiUrl}/api/breached-account/${encodeURIComponent(email)}`;
+      const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/$/, '');
+      const fullUrl = `${apiBaseUrl}/hibp/v3/breachedaccount/${encodeURIComponent(email)}`;
       
       console.log('Calling API endpoint:', fullUrl);
       

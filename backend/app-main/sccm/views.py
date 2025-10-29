@@ -4,14 +4,18 @@ from .models import Item
 from .serializers import ItemSerializer, ComputerInfoSerializer
 from sccm.scripts.sccm_get_computer_info import get_computer_info
 from drf_yasg.utils import swagger_auto_schema
-from rest_framework.authentication import TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
 from drf_yasg import openapi
+from utils.authentication import AzureAdTokenAuthentication
+from rest_framework.authentication import TokenAuthentication
 
 
 
 
 class SCCMViewSet_1_0_1(viewsets.ViewSet):
+
+    authentication_classes = [AzureAdTokenAuthentication, TokenAuthentication]
+    permission_classes = [IsAuthenticated]
 
 
     header_parameter = openapi.Parameter(
@@ -45,10 +49,6 @@ class SCCMViewSet_1_0_1(viewsets.ViewSet):
     )
 
     def get_computerinfo(self, request, computer_name=None):
-
-        authentication_classes = [TokenAuthentication]  # Require token authentication for this view
-        permission_classes = [IsAuthenticated]  # Require authenticated user for this view
-
 
         # Check if the computer_name is None, or is an empty string, or with only spaces
         if computer_name is None or computer_name.strip() == "":

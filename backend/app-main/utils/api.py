@@ -11,6 +11,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from .authentication import AzureAdTokenAuthentication
 logger = logging.getLogger(__name__)
 
 
@@ -24,7 +25,7 @@ class SecuredAPIView(APIView):
     runtime behaviour.
     """
 
-    authentication_classes = [SessionAuthentication, TokenAuthentication]
+    authentication_classes = [SessionAuthentication, TokenAuthentication, AzureAdTokenAuthentication]
 
     def finalize_response(  # type: ignore[override]
         self,
