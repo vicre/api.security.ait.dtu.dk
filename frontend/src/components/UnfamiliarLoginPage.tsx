@@ -83,6 +83,77 @@ const DEFAULT_VIEW = {
   bearing: 0
 };
 
+type CountryCoordinate = {
+  latitude: number;
+  longitude: number;
+  label: string;
+};
+
+const COUNTRY_COORDINATES: Record<string, CountryCoordinate> = {
+  DK: { latitude: 56.2639, longitude: 9.5018, label: 'Denmark' },
+  DENMARK: { latitude: 56.2639, longitude: 9.5018, label: 'Denmark' },
+  SE: { latitude: 60.1282, longitude: 18.6435, label: 'Sweden' },
+  SWEDEN: { latitude: 60.1282, longitude: 18.6435, label: 'Sweden' },
+  NO: { latitude: 60.472, longitude: 8.4689, label: 'Norway' },
+  NORWAY: { latitude: 60.472, longitude: 8.4689, label: 'Norway' },
+  FI: { latitude: 61.9241, longitude: 25.7482, label: 'Finland' },
+  FINLAND: { latitude: 61.9241, longitude: 25.7482, label: 'Finland' },
+  IS: { latitude: 64.9631, longitude: -19.0208, label: 'Iceland' },
+  ICELAND: { latitude: 64.9631, longitude: -19.0208, label: 'Iceland' },
+  DE: { latitude: 51.1657, longitude: 10.4515, label: 'Germany' },
+  GERMANY: { latitude: 51.1657, longitude: 10.4515, label: 'Germany' },
+  NL: { latitude: 52.1326, longitude: 5.2913, label: 'Netherlands' },
+  NETHERLANDS: { latitude: 52.1326, longitude: 5.2913, label: 'Netherlands' },
+  UK: { latitude: 55.3781, longitude: -3.436, label: 'United Kingdom' },
+  GB: { latitude: 55.3781, longitude: -3.436, label: 'United Kingdom' },
+  'UNITED KINGDOM': { latitude: 55.3781, longitude: -3.436, label: 'United Kingdom' },
+  FR: { latitude: 46.2276, longitude: 2.2137, label: 'France' },
+  FRANCE: { latitude: 46.2276, longitude: 2.2137, label: 'France' },
+  ES: { latitude: 40.4637, longitude: -3.7492, label: 'Spain' },
+  SPAIN: { latitude: 40.4637, longitude: -3.7492, label: 'Spain' },
+  IT: { latitude: 41.8719, longitude: 12.5674, label: 'Italy' },
+  ITALY: { latitude: 41.8719, longitude: 12.5674, label: 'Italy' },
+  US: { latitude: 37.0902, longitude: -95.7129, label: 'United States' },
+  USA: { latitude: 37.0902, longitude: -95.7129, label: 'United States' },
+  'UNITED STATES': { latitude: 37.0902, longitude: -95.7129, label: 'United States' },
+  CA: { latitude: 56.1304, longitude: -106.3468, label: 'Canada' },
+  CANADA: { latitude: 56.1304, longitude: -106.3468, label: 'Canada' },
+  BR: { latitude: -14.235, longitude: -51.9253, label: 'Brazil' },
+  BRAZIL: { latitude: -14.235, longitude: -51.9253, label: 'Brazil' },
+  AU: { latitude: -25.2744, longitude: 133.7751, label: 'Australia' },
+  AUSTRALIA: { latitude: -25.2744, longitude: 133.7751, label: 'Australia' },
+  NZ: { latitude: -40.9006, longitude: 174.886, label: 'New Zealand' },
+  'NEW ZEALAND': { latitude: -40.9006, longitude: 174.886, label: 'New Zealand' },
+  IN: { latitude: 20.5937, longitude: 78.9629, label: 'India' },
+  INDIA: { latitude: 20.5937, longitude: 78.9629, label: 'India' },
+  CN: { latitude: 35.8617, longitude: 104.1954, label: 'China' },
+  CHINA: { latitude: 35.8617, longitude: 104.1954, label: 'China' },
+  JP: { latitude: 36.2048, longitude: 138.2529, label: 'Japan' },
+  JAPAN: { latitude: 36.2048, longitude: 138.2529, label: 'Japan' },
+  SG: { latitude: 1.3521, longitude: 103.8198, label: 'Singapore' },
+  SINGAPORE: { latitude: 1.3521, longitude: 103.8198, label: 'Singapore' },
+  AE: { latitude: 23.4241, longitude: 53.8478, label: 'United Arab Emirates' },
+  'UNITED ARAB EMIRATES': { latitude: 23.4241, longitude: 53.8478, label: 'United Arab Emirates' },
+  ZA: { latitude: -30.5595, longitude: 22.9375, label: 'South Africa' },
+  'SOUTH AFRICA': { latitude: -30.5595, longitude: 22.9375, label: 'South Africa' },
+  NG: { latitude: 9.082, longitude: 8.6753, label: 'Nigeria' },
+  NIGERIA: { latitude: 9.082, longitude: 8.6753, label: 'Nigeria' },
+  RU: { latitude: 61.524, longitude: 105.3188, label: 'Russia' },
+  RUSSIA: { latitude: 61.524, longitude: 105.3188, label: 'Russia' },
+  MX: { latitude: 23.6345, longitude: -102.5528, label: 'Mexico' },
+  MEXICO: { latitude: 23.6345, longitude: -102.5528, label: 'Mexico' }
+};
+
+const normalizeLookupKey = (value: string): string => value.trim().toUpperCase();
+
+const resolveCountry = (value: string | undefined) => {
+  if (!value) {
+    return undefined;
+  }
+  const key = normalizeLookupKey(value);
+  return COUNTRY_COORDINATES[key];
+};
+
 const getFirstString = (record: RawIdentityEvent, keys: readonly string[]): string | undefined => {
   for (const key of keys) {
     const value = record[key];
@@ -128,6 +199,14 @@ const buildDisplayLocation = (record: RawIdentityEvent): string => {
   const country = getFirstString(record, ['LocationCountryOrRegion', 'CountryOrRegion', 'Country']);
   const location = getFirstString(record, LOCATION_KEYS);
 
+  const locationCandidates = [location, country, city].filter((value): value is string => Boolean(value));
+  for (const candidate of locationCandidates) {
+    const resolved = resolveCountry(candidate);
+    if (resolved) {
+      return resolved.label;
+    }
+  }
+
   if (city && country) {
     return `${city}, ${country}`;
   }
@@ -141,6 +220,57 @@ const buildDisplayLocation = (record: RawIdentityEvent): string => {
     return country;
   }
   return 'Unknown location';
+};
+
+const resolveCoordinates = (
+  record: RawIdentityEvent,
+  displayLocation: string,
+  explicitLatitude?: number,
+  explicitLongitude?: number
+): { latitude?: number; longitude?: number; labelOverride?: string } => {
+  if (typeof explicitLatitude === 'number' && typeof explicitLongitude === 'number') {
+    return { latitude: explicitLatitude, longitude: explicitLongitude };
+  }
+
+  const locationValue = getFirstString(record, LOCATION_KEYS);
+  const countryCandidates = new Set<string>();
+  if (locationValue) {
+    countryCandidates.add(locationValue);
+    locationValue.split(/[,\-]/).forEach(part => {
+      const trimmed = part.trim();
+      if (trimmed) {
+        countryCandidates.add(trimmed);
+      }
+    });
+  }
+
+  if (displayLocation) {
+    countryCandidates.add(displayLocation);
+    displayLocation.split(',').forEach(part => {
+      const trimmed = part.trim();
+      if (trimmed) {
+        countryCandidates.add(trimmed);
+      }
+    });
+  }
+
+  const isp = getFirstString(record, ['ISP']);
+  if (isp) {
+    countryCandidates.add(isp);
+  }
+
+  for (const candidate of countryCandidates) {
+    const resolved = resolveCountry(candidate);
+    if (resolved) {
+      return {
+        latitude: resolved.latitude,
+        longitude: resolved.longitude,
+        labelOverride: resolved.label
+      };
+    }
+  }
+
+  return {};
 };
 
 const formatTimestamp = (timestamp: string): string => {
@@ -162,12 +292,15 @@ const transformEvents = (rawEvents: RawIdentityEvent[]): SignInEvent[] => {
   return rawEvents
     .map((raw, index) => {
       const timestamp = getFirstTimestamp(raw);
-      const latitude = getFirstNumber(raw, LATITUDE_KEYS);
-      const longitude = getFirstNumber(raw, LONGITUDE_KEYS);
       const ipAddress = getFirstString(raw, IP_ADDRESS_KEYS);
       const protocol = getFirstString(raw, PROTOCOL_KEYS);
       const status = getFirstString(raw, STATUS_KEYS);
       const displayLocation = buildDisplayLocation(raw);
+      const explicitLatitude = getFirstNumber(raw, LATITUDE_KEYS);
+      const explicitLongitude = getFirstNumber(raw, LONGITUDE_KEYS);
+      const coordinateResolution = resolveCoordinates(raw, displayLocation, explicitLatitude, explicitLongitude);
+      const latitude = explicitLatitude ?? coordinateResolution.latitude;
+      const longitude = explicitLongitude ?? coordinateResolution.longitude;
       const idCandidate =
         getFirstString(raw, ['EventId', 'Id', 'ActivityId', 'LogonId']) ??
         `${timestamp ?? 'event'}-${index}`;
@@ -179,7 +312,7 @@ const transformEvents = (rawEvents: RawIdentityEvent[]): SignInEvent[] => {
       return {
         id: idCandidate,
         timestamp,
-        displayLocation,
+        displayLocation: coordinateResolution.labelOverride ?? displayLocation,
         ipAddress: ipAddress ?? undefined,
         latitude,
         longitude,
@@ -214,6 +347,24 @@ const buildGeoJson = (events: SignInEvent[]): FeatureCollection<Point> => {
     features
   };
 };
+
+const resolveApiBaseUrl = (): string => {
+  const explicit = import.meta.env.VITE_API_BASE_URL;
+  if (typeof explicit === 'string' && explicit.trim()) {
+    return explicit.trim().replace(/\/$/, '');
+  }
+
+  if (typeof window !== 'undefined') {
+    const origin = window.location.origin;
+    if (origin.includes('localhost')) {
+      return 'http://localhost:6081';
+    }
+    return origin.replace(/\/$/, '');
+  }
+
+  return 'http://localhost:6081';
+};
+
 
 const locationLayer: Layer = {
   id: 'identity-events',
@@ -319,7 +470,7 @@ const UnfamiliarLoginPage: React.FC<UnfamiliarLoginPageProps> = ({ accessToken, 
     setSelectedEventId(null);
 
     try {
-      const baseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/$/, '');
+      const baseUrl = resolveApiBaseUrl();
       const endpoint = `${baseUrl}/graph/v1.0/identitylogonevents/${encodeURIComponent(targetUser)}`;
       const url = windowParam ? `${endpoint}?lookback=${encodeURIComponent(windowParam)}` : endpoint;
 

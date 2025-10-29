@@ -385,8 +385,38 @@ class AccessControlMiddleware(MiddlewareMixin):
             self._ensure_debug_user(request, normalised_path)
 
             if token and not token.startswith("YOUR_API_KEY"):
-                if not self._authenticate_by_token(request, token):
+                scheme, _, credentials = token.partition(" ")
+                scheme_lower = scheme.lower()
+                token_value = credentials if credentials else token
+                should_attempt_token_auth = True
+
+                if scheme_lower == "bearer":
+                    should_attempt_token_auth = False
+                elif scheme_lower in {"basic", "digest"}:
+                    should_attempt_token_auth = False
+                elif not credentials and scheme_lower != token.lower():
+                    should_attempt_token_auth = False
+
+                masked_token = ""
+                if token_value:
+                    trimmed = token_value.strip()
+                    masked_token = f"{trimmed[:6]}…{trimmed[-4:]}" if len(trimmed) > 12 else trimmed
+
+                logger.debug(
+                    "AccessControl auth header parsed scheme=%s credentials_present=%s attempt_token_auth=%s token_preview=%s",
+                    scheme_lower or "<empty>",
+                    bool(credentials),
+                    should_attempt_token_auth,
+                    masked_token,
+                )
+
+                if should_attempt_token_auth and not self._authenticate_by_token(request, token_value.strip()):
                     action = "invalid_token"
+                    logger.info(
+                        "AccessControl API token authentication failed path=%s scheme=%s",
+                        request.path,
+                        scheme_lower or "<empty>",
+                    )
                     response = JsonResponse({"error": "Invalid API token."}, status=403)
 
             if response is None:
