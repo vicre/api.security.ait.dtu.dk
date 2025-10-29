@@ -1,13 +1,11 @@
-import { useAuth } from './hooks/useAuth'
-import LoginPage from './components/LoginPage'
-import Dashboard from './components/Dashboard'
-import './styles/App.css'
+import { useAuth } from './hooks/useAuth';
+import LoginPage from './components/LoginPage';
+import Dashboard from './components/Dashboard';
+import './styles/App.css';
 
 function App() {
-  // Use our custom authentication hook
   const { isAuthenticated, isLoading } = useAuth();
 
-  // Show loading spinner while checking authentication
   if (isLoading) {
     return (
       <div className="loading-container">
@@ -19,7 +17,6 @@ function App() {
     );
   }
 
-  // Show login page or dashboard based on authentication status
   return (
     <div className="App">
       {isAuthenticated ? <Dashboard /> : <LoginPage />}
@@ -27,4 +24,4 @@ function App() {
   );
 }
 
-export default App
+export default App;

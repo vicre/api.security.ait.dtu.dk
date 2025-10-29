@@ -34,8 +34,8 @@ const ResetMFAModal: React.FC<ResetMFAModalProps> = ({ onClose, accessToken }) =
     try {
       console.log('🔄 Resetting MFA for user:', username);
       
-      // TODO: Replace with actual API endpoint when your colleague implements it
-      const response = await fetch('/api/auth/reset-mfa', {
+      const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/$/, '');
+      const response = await fetch(`${apiBaseUrl}/api/auth/reset-mfa`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

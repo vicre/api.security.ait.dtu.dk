@@ -221,6 +221,36 @@ AZURE_AD = {
     'SCOPE': ['User.Read']  # Add other scopes if needed
 }
 
+_azure_audience = os.getenv('AZURE_API_AUDIENCE') or os.getenv('AZURE_API_CLIENT_ID')
+_azure_client_id = AZURE_AD.get('CLIENT_ID')
+
+_audience_candidates = [
+    _azure_audience,
+    f"api://{_azure_audience}" if _azure_audience and not _azure_audience.startswith('api://') else None,
+    _azure_client_id,
+    f"api://{_azure_client_id}" if _azure_client_id else None,
+]
+
+AZURE_AD_ALLOWED_AUDIENCES = tuple(
+    dict.fromkeys(filter(None, _audience_candidates))
+)
+
+_tenant_for_issuers = AZURE_AD.get('TENANT_ID') or os.getenv('AZURE_TENANT_ID')
+AZURE_AD_ALLOWED_ISSUERS = tuple(
+    filter(
+        None,
+        [
+            f"https://login.microsoftonline.com/{_tenant_for_issuers}/v2.0" if _tenant_for_issuers else None,
+            f"https://sts.windows.net/{_tenant_for_issuers}/" if _tenant_for_issuers else None,
+        ],
+    )
+)
+
+try:
+    AZURE_AD_LEEWAY_SECONDS = int(os.getenv('AZURE_AD_LEEWAY_SECONDS', '120'))
+except ValueError:
+    AZURE_AD_LEEWAY_SECONDS = 120
+
 AZURE_GRAPH_REQUEST_TIMEOUT = _as_float(
     os.getenv('AZURE_GRAPH_TIMEOUT'),
     10.0,
@@ -271,6 +301,19 @@ else:
     ALLOWED_HOSTS = default_allowed_hosts
 
 
+cors_origins_env = os.getenv('DJANGO_CORS_ALLOWED_ORIGINS')
+if cors_origins_env:
+    CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins_env.split(',') if origin.strip()]
+else:
+    CORS_ALLOWED_ORIGINS = [
+        'http://localhost:3030',
+        'http://127.0.0.1:3030',
+        'https://view.security.ait.dtu.dk',
+    ]
+
+CORS_ALLOW_CREDENTIALS = False
+
+
 default_csrf_domain = os.getenv('DJANGO_CSRF_COOKIE_DOMAIN')
 if default_csrf_domain is not None:
     CSRF_COOKIE_DOMAIN = default_csrf_domain or None
@@ -312,6 +355,7 @@ INSTALLED_APPS = [
     'django_extensions',
     'rest_framework',
     'rest_framework.authtoken',
+    'corsheaders',
     'sccm',
     'drf_yasg',
     'myview',
@@ -327,6 +371,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -562,6 +607,7 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework.authentication.TokenAuthentication',
         'rest_framework.authentication.SessionAuthentication',
+        'utils.authentication.AzureAdTokenAuthentication',
     ),
 }
 
