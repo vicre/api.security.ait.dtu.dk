@@ -23,6 +23,7 @@ interface SignInEvent {
   longitude?: number;
   protocol?: string;
   status?: string;
+  geo?: GeoLookupResult;
   raw: RawIdentityEvent;
 }
 
@@ -144,6 +145,50 @@ const COUNTRY_COORDINATES: Record<string, CountryCoordinate> = {
   MX: { latitude: 23.6345, longitude: -102.5528, label: 'Mexico' },
   MEXICO: { latitude: 23.6345, longitude: -102.5528, label: 'Mexico' }
 };
+
+const DTU_CAMPUS_COORDINATES: CountryCoordinate = {
+  latitude: 55.786545,
+  longitude: 12.521999,
+  label: 'DTU Campus, Lyngby'
+};
+
+const PRIVATE_IPV4_PATTERNS = [
+  /^10\./,
+  /^127\./,
+  /^169\.254\./,
+  /^172\.(1[6-9]|2[0-9]|3[0-1])\./,
+  /^192\.168\./,
+  /^100\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\./
+];
+
+const PRIVATE_IPV6_PATTERNS = [/^::1$/, /^fc/i, /^fd/i, /^fe80/i];
+
+const isPrivateIpAddress = (ip: string): boolean => {
+  if (!ip) {
+    return false;
+  }
+
+  const trimmed = ip.trim();
+  if (trimmed.includes(':')) {
+    return PRIVATE_IPV6_PATTERNS.some(pattern => pattern.test(trimmed));
+  }
+
+  return PRIVATE_IPV4_PATTERNS.some(pattern => pattern.test(trimmed));
+};
+
+interface GeoLookupResult {
+  ip: string;
+  latitude?: number;
+  longitude?: number;
+  label: string;
+  city?: string;
+  region?: string;
+  country?: string;
+  isp?: string;
+  source: 'private' | 'ipwhois' | 'unresolved';
+  isPrivate: boolean;
+  raw?: unknown;
+}
 
 const normalizeLookupKey = (value: string): string => value.trim().toUpperCase();
 
@@ -398,6 +443,7 @@ const UnfamiliarLoginPage: React.FC<UnfamiliarLoginPageProps> = ({ accessToken, 
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [activeUser, setActiveUser] = useState<string>('');
   const [activeLookback, setActiveLookback] = useState<string>('7d');
+  const geolocationCacheRef = useRef<Map<string, GeoLookupResult>>(new Map());
 
   const effectiveAuthToken = useMemo(() => {
     const manualToken = backendApiToken?.trim();
@@ -422,6 +468,10 @@ const UnfamiliarLoginPage: React.FC<UnfamiliarLoginPageProps> = ({ accessToken, 
   const selectedEvent = useMemo(
     () => events.find(event => event.id === selectedEventId) ?? null,
     [events, selectedEventId]
+  );
+  const selectedEventRawJson = useMemo(
+    () => (selectedEvent ? JSON.stringify(selectedEvent.raw, null, 2) : ''),
+    [selectedEvent]
   );
 
   const fitMapToEvents = useCallback(
@@ -467,6 +517,162 @@ const UnfamiliarLoginPage: React.FC<UnfamiliarLoginPageProps> = ({ accessToken, 
     }
   };
 
+  const resolveIpGeolocation = useCallback(
+    async (ip: string): Promise<GeoLookupResult> => {
+      const normalized = ip.trim();
+      const cache = geolocationCacheRef.current;
+      const cached = cache.get(normalized);
+      if (cached) {
+        return cached;
+      }
+
+      let result: GeoLookupResult;
+
+      if (isPrivateIpAddress(normalized)) {
+        result = {
+          ip: normalized,
+          latitude: DTU_CAMPUS_COORDINATES.latitude,
+          longitude: DTU_CAMPUS_COORDINATES.longitude,
+          label: DTU_CAMPUS_COORDINATES.label,
+          city: 'Lyngby',
+          region: 'Lyngby-Taarbæk',
+          country: 'Denmark',
+          isp: 'DTU Campus Network',
+          source: 'private',
+          isPrivate: true
+        };
+      } else {
+        try {
+          const controller = new AbortController();
+          let timeoutId: ReturnType<typeof setTimeout> | undefined;
+          let payload: any = null;
+
+          try {
+            timeoutId = setTimeout(() => controller.abort(), 6000);
+            const response = await fetch(`https://ipwho.is/${encodeURIComponent(normalized)}`, {
+              signal: controller.signal
+            });
+
+            if (!response.ok) {
+              throw new Error(`ipwho.is responded with status ${response.status}`);
+            }
+
+            payload = await response.json();
+          } finally {
+            if (timeoutId) {
+              clearTimeout(timeoutId);
+            }
+          }
+
+          if (payload?.success) {
+            const labelParts = [payload.city, payload.region, payload.country]
+              .map((part: string | undefined) => (typeof part === 'string' && part.trim() ? part.trim() : null))
+              .filter(Boolean) as string[];
+            const label = labelParts.length > 0 ? labelParts.join(', ') : payload.country || 'Unknown location';
+
+            result = {
+              ip: normalized,
+              latitude: typeof payload.latitude === 'number' ? payload.latitude : undefined,
+              longitude: typeof payload.longitude === 'number' ? payload.longitude : undefined,
+              city: payload.city || undefined,
+              region: payload.region || payload.region_name || undefined,
+              country: payload.country || undefined,
+              isp: payload.connection?.isp || payload.isp || payload.org || undefined,
+              label: label || 'Unknown location',
+              source: 'ipwhois',
+              isPrivate: false,
+              raw: payload
+            };
+          } else {
+            result = {
+              ip: normalized,
+              label: 'Unknown location',
+              source: 'unresolved',
+              isPrivate: false,
+              raw: payload
+            };
+          }
+        } catch (lookupError) {
+          console.warn('Failed to resolve IP geolocation', normalized, lookupError);
+          result = {
+            ip: normalized,
+            label: 'Unknown location',
+            source: 'unresolved',
+            isPrivate: false
+          };
+        }
+      }
+
+      cache.set(normalized, result);
+      return result;
+    },
+    []
+  );
+
+  const enrichEventsWithGeolocation = useCallback(
+    async (incomingEvents: SignInEvent[]): Promise<SignInEvent[]> => {
+      if (incomingEvents.length === 0) {
+        return incomingEvents;
+      }
+
+      const uniqueIps = Array.from(
+        new Set(
+          incomingEvents
+            .map(event => event.ipAddress?.trim())
+            .filter((value): value is string => Boolean(value))
+        )
+      );
+
+      if (uniqueIps.length === 0) {
+        return incomingEvents;
+      }
+
+      const lookups = await Promise.all(
+        uniqueIps.map(async ip => {
+          try {
+            return await resolveIpGeolocation(ip);
+          } catch (err) {
+            console.warn('Geolocation lookup failed for', ip, err);
+            return null;
+          }
+        })
+      );
+
+      const lookupMap = new Map<string, GeoLookupResult>();
+      for (const entry of lookups) {
+        if (entry) {
+          lookupMap.set(entry.ip, entry);
+        }
+      }
+
+      return incomingEvents.map(event => {
+        const ip = event.ipAddress?.trim();
+        if (!ip) {
+          return event;
+        }
+
+        const geo = lookupMap.get(ip);
+        if (!geo) {
+          return event;
+        }
+
+        const latitude = typeof geo.latitude === 'number' ? geo.latitude : event.latitude;
+        const longitude = typeof geo.longitude === 'number' ? geo.longitude : event.longitude;
+        const locationLabel =
+          geo.label && geo.label !== 'Unknown location' ? geo.label : event.displayLocation;
+
+        return {
+          ...event,
+          latitude,
+          longitude,
+          displayLocation: locationLabel || event.displayLocation,
+          geo
+        };
+      });
+    },
+    [resolveIpGeolocation]
+  );
+
   const fetchIdentityEvents = async (targetUser: string, windowParam: string) => {
     if (!targetUser.trim()) {
       setError('Please enter a username to look up sign-ins.');
@@ -504,8 +710,9 @@ const UnfamiliarLoginPage: React.FC<UnfamiliarLoginPageProps> = ({ accessToken, 
       const payload = (await response.json()) as IdentityLogonResponse;
       const rawResults = Array.isArray(payload?.results) ? payload.results : [];
       const transformed = transformEvents(rawResults);
+      const enriched = await enrichEventsWithGeolocation(transformed);
 
-      if (transformed.length === 0) {
+      if (enriched.length === 0) {
         setEvents([]);
         setError('No sign-in activity found for this user in the selected window.');
         setActiveUser(targetUser);
@@ -514,10 +721,10 @@ const UnfamiliarLoginPage: React.FC<UnfamiliarLoginPageProps> = ({ accessToken, 
       }
 
       const primarySelection =
-        transformed.find(event => typeof event.latitude === 'number' && typeof event.longitude === 'number') ??
-        transformed[0];
+        enriched.find(event => typeof event.latitude === 'number' && typeof event.longitude === 'number') ??
+        enriched[0];
 
-      setEvents(transformed);
+      setEvents(enriched);
       setSelectedEventId(primarySelection.id);
       setActiveUser(targetUser);
       setActiveLookback(windowParam || '7d');
@@ -623,6 +830,16 @@ const UnfamiliarLoginPage: React.FC<UnfamiliarLoginPageProps> = ({ accessToken, 
                       <strong>{selectedEvent.displayLocation}</strong>
                       <p>{formatTimestamp(selectedEvent.timestamp)}</p>
                       {selectedEvent.ipAddress && <p>IP: {selectedEvent.ipAddress}</p>}
+                      {selectedEvent.geo?.isp && <p>ISP: {selectedEvent.geo.isp}</p>}
+                      {selectedEvent.geo?.country && (
+                        <p>
+                          Region:{' '}
+                          {[selectedEvent.geo.city, selectedEvent.geo.region, selectedEvent.geo.country]
+                            .filter(Boolean)
+                            .join(', ')}
+                        </p>
+                      )}
+                      {selectedEvent.geo?.isPrivate && <p>Private network · DTU campus fallback</p>}
                       {selectedEvent.protocol && <p>Protocol: {selectedEvent.protocol}</p>}
                       {selectedEvent.status && <p>Status: {selectedEvent.status}</p>}
                     </div>
@@ -676,6 +893,88 @@ const UnfamiliarLoginPage: React.FC<UnfamiliarLoginPageProps> = ({ accessToken, 
                 </button>
               ))}
             </div>
+
+            {selectedEvent && (
+              <div className="timeline-details">
+                <h4>Sign-in details</h4>
+                <div className="details-grid">
+                  <div>
+                    <span className="details-label">Timestamp</span>
+                    <span className="details-value">{formatTimestamp(selectedEvent.timestamp)}</span>
+                  </div>
+                  <div>
+                    <span className="details-label">Location</span>
+                    <span className="details-value">
+                      {selectedEvent.displayLocation}
+                      {selectedEvent.geo?.isPrivate ? ' · Private network' : ''}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="details-label">Coordinates</span>
+                    <span className="details-value">
+                      {typeof selectedEvent.latitude === 'number' && typeof selectedEvent.longitude === 'number'
+                        ? `${selectedEvent.latitude.toFixed(4)}, ${selectedEvent.longitude.toFixed(4)}`
+                        : 'Not available'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="details-label">Region</span>
+                    <span className="details-value">
+                      {[selectedEvent.geo?.city, selectedEvent.geo?.region, selectedEvent.geo?.country]
+                        .filter(Boolean)
+                        .join(', ') || 'Unknown'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="details-label">IP address</span>
+                    <span className="details-value">
+                      {selectedEvent.ipAddress ?? 'Unknown'}
+                      {selectedEvent.geo?.isp ? ` · ${selectedEvent.geo.isp}` : ''}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="details-label">Geo source</span>
+                    <span className="details-value">
+                      {selectedEvent.geo?.source === 'ipwhois'
+                        ? 'ipwho.is lookup'
+                        : selectedEvent.geo?.source === 'private'
+                        ? 'DTU campus fallback'
+                        : 'Graph data'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="details-label">Protocol</span>
+                    <span className="details-value">{selectedEvent.protocol ?? 'Unknown'}</span>
+                  </div>
+                  <div>
+                    <span className="details-label">Status</span>
+                    <span className="details-value">{selectedEvent.status ?? 'Unknown'}</span>
+                  </div>
+                  <div>
+                    <span className="details-label">Application</span>
+                    <span className="details-value">
+                      {(selectedEvent.raw['Application'] as string) || 'Unknown'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="details-label">Logon type</span>
+                    <span className="details-value">
+                      {(selectedEvent.raw['LogonType'] as string) || 'Unknown'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="details-label">Failure reason</span>
+                    <span className="details-value">
+                      {(selectedEvent.raw['FailureReason'] as string) || 'None reported'}
+                    </span>
+                  </div>
+                </div>
+                <details className="raw-event-details">
+                  <summary>Raw event payload</summary>
+                  <pre>{selectedEventRawJson}</pre>
+                </details>
+              </div>
+            )}
           </aside>
         </section>
       </div>
