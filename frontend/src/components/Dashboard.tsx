@@ -5,6 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import ApiTestPage from './ApiTestPage';
 import ResetMFAModal from './ResetMFAModal';
+import SwaggerDocsModal from './SwaggerDocsModal';
 import UnfamiliarLoginPage from './UnfamiliarLoginPage';
 import './Dashboard.css';
 
@@ -18,6 +19,7 @@ const Dashboard: React.FC = () => {
   const [showApiTestPage, setShowApiTestPage] = useState<boolean>(false);
   const [showUnfamiliarLogin, setShowUnfamiliarLogin] = useState<boolean>(false);
   const [showMFAModal, setShowMFAModal] = useState<boolean>(false);
+  const [showSwaggerDocs, setShowSwaggerDocs] = useState<boolean>(false);
   const [authStatus, setAuthStatus] = useState<'ready' | 'checking' | 'expired'>('checking');
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [backendApiToken, setBackendApiToken] = useState<string | null>(null);
@@ -118,6 +120,10 @@ const Dashboard: React.FC = () => {
 
   const handleMFAReset = () => {
     setShowMFAModal(true);
+  };
+
+  const handleSwaggerDocs = () => {
+    setShowSwaggerDocs(true);
   };
 
   const handleViewDocs = () => {
@@ -253,6 +259,13 @@ const Dashboard: React.FC = () => {
               <p>Browse complete API documentation and examples</p>
             </div>
 
+            {/* Swagger UI Card */}
+            <div className="card" onClick={handleSwaggerDocs}>
+              <div className="card-icon">🧭</div>
+              <h3>Swagger UI</h3>
+              <p>Open backend Swagger docs in an embedded viewer</p>
+            </div>
+
             {/* Check Unfamiliar Login Card */}
             <div className={`card ${authStatus !== 'ready' ? 'disabled' : ''}`} onClick={handleUnfamiliarLogin}>
               <div className="card-icon">🔍</div>
@@ -306,6 +319,14 @@ const Dashboard: React.FC = () => {
         <ResetMFAModal
           accessToken={accessToken}
           onClose={() => setShowMFAModal(false)}
+        />
+      )}
+
+      {/* Swagger Docs Modal */}
+      {showSwaggerDocs && (
+        <SwaggerDocsModal
+          accessToken={accessToken}
+          onClose={() => setShowSwaggerDocs(false)}
         />
       )}
     </div>
