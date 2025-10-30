@@ -239,11 +239,12 @@ const Dashboard: React.FC = () => {
 
   const handleViewDocs = () => {
     // Pass token as parameter for automatic authentication
+    const baseUrl = resolveApiBaseUrl();
     if (accessToken) {
-      const swaggerUrl = `https://api.security.ait.dtu.dk/myview/swagger/?access_token=${encodeURIComponent(accessToken)}`;
+      const swaggerUrl = `${baseUrl}/myview/swagger/?access_token=${encodeURIComponent(accessToken)}`;
       window.open(swaggerUrl, '_blank');
     } else {
-      window.open('https://api.security.ait.dtu.dk/myview/swagger/', '_blank');
+      window.open(`${baseUrl}/myview/swagger/`, '_blank');
     }
   };
 

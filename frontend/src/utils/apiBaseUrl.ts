@@ -5,11 +5,21 @@ export const resolveApiBaseUrl = (): string => {
   }
 
   if (typeof window !== 'undefined') {
-    const origin = window.location.origin;
-    if (origin.includes('localhost')) {
+    const { protocol, hostname, port } = window.location;
+    if (hostname.includes('localhost')) {
       return 'http://localhost:6081';
     }
-    return origin.replace(/\/$/, '');
+
+    let candidateHost = hostname;
+
+    if (candidateHost.includes('-view.')) {
+      candidateHost = candidateHost.replace('-view.', '-api.');
+    } else if (candidateHost.startsWith('view.')) {
+      candidateHost = candidateHost.replace('view.', 'api.');
+    }
+
+    const derivedOrigin = `${protocol}//${candidateHost}${port ? `:${port}` : ''}`;
+    return derivedOrigin.replace(/\/$/, '');
   }
 
   return 'http://localhost:6081';

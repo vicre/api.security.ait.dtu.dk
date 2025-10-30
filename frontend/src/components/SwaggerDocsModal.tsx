@@ -1,17 +1,19 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import './SwaggerDocsModal.css';
+import { resolveApiBaseUrl } from '../utils/apiBaseUrl';
 
 interface SwaggerDocsModalProps {
   accessToken: string | null;
   onClose: () => void;
 }
 
-const SWAGGER_SPEC_URL = 'https://api.security.ait.dtu.dk/myview/swagger/?format=openapi';
-
 const SwaggerDocsModal: React.FC<SwaggerDocsModalProps> = ({ accessToken, onClose }) => {
   const [swaggerHtmlDocument, setSwaggerHtmlDocument] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const apiBaseUrl = resolveApiBaseUrl();
+  const swaggerSpecUrl = `${apiBaseUrl}/myview/swagger/?format=openapi`;
+  const swaggerUiUrl = `${apiBaseUrl}/myview/swagger/`;
 
   useEffect(() => {
     let isActive = true;
@@ -29,26 +31,29 @@ const SwaggerDocsModal: React.FC<SwaggerDocsModalProps> = ({ accessToken, onClos
           headers.Authorization = `Bearer ${accessToken}`;
         }
 
-        const response = await fetch(SWAGGER_SPEC_URL, {
+        const response = await fetch(swaggerSpecUrl, {
           method: 'GET',
           headers,
-          credentials: 'include',
         });
 
         if (!response.ok) {
           throw new Error(`Failed to load Swagger specification (${response.status})`);
         }
 
-        const swaggerSpec = await response.json();
+        const rawPayload = await response.text();
 
         if (!isActive) {
           return;
         }
 
-        const serializedSpec = JSON.stringify(swaggerSpec).replace(/</g, '\\u003c');
-        const encodedToken = accessToken ? JSON.stringify(accessToken) : 'null';
+        let htmlDocument: string | null = null;
 
-        const htmlDocument = `<!DOCTYPE html>
+        try {
+          const swaggerSpec = JSON.parse(rawPayload);
+          const serializedSpec = JSON.stringify(swaggerSpec).replace(/</g, '\\u003c');
+          const encodedToken = accessToken ? JSON.stringify(accessToken) : 'null';
+
+          htmlDocument = `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -87,6 +92,48 @@ const SwaggerDocsModal: React.FC<SwaggerDocsModalProps> = ({ accessToken, onClos
     </script>
   </body>
 </html>`;
+        } catch {
+          const encodedToken = accessToken ? JSON.stringify(accessToken) : 'null';
+          htmlDocument = `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Swagger UI</title>
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+    <style>
+      body { margin: 0; background: #f5f5f5; }
+      #swagger-ui { height: 100vh; }
+    </style>
+  </head>
+  <body>
+    <div id="swagger-ui"></div>
+    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-standalone-preset.js"></script>
+    <script>
+      (function () {
+        const specUrl = ${JSON.stringify(swaggerSpecUrl)};
+        const accessToken = ${encodedToken};
+
+        window.ui = SwaggerUIBundle({
+          url: specUrl,
+          dom_id: '#swagger-ui',
+          presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+          layout: 'BaseLayout',
+          deepLinking: true,
+          requestInterceptor: (req) => {
+            if (accessToken) {
+              req.headers = req.headers || {};
+              req.headers.Authorization = 'Bearer ' + accessToken;
+            }
+            return req;
+          },
+        });
+      })();
+    </script>
+  </body>
+</html>`;
+        }
 
         setSwaggerHtmlDocument(htmlDocument);
       } catch (error: unknown) {
@@ -113,7 +160,7 @@ const SwaggerDocsModal: React.FC<SwaggerDocsModalProps> = ({ accessToken, onClos
     return () => {
       isActive = false;
     };
-  }, [accessToken]);
+  }, [accessToken, swaggerSpecUrl]);
 
   const handleOverlayClick = (event: React.MouseEvent<HTMLDivElement>) => {
     if (event.target === event.currentTarget) {
@@ -123,7 +170,11 @@ const SwaggerDocsModal: React.FC<SwaggerDocsModalProps> = ({ accessToken, onClos
 
   const handleOpenInNewTab = useCallback(() => {
     if (!swaggerHtmlDocument) {
-      window.open('https://api.security.ait.dtu.dk/myview/swagger/', '_blank', 'noopener,noreferrer');
+      const targetUrl =
+        accessToken && accessToken.trim().length > 0
+          ? `${swaggerUiUrl}?access_token=${encodeURIComponent(accessToken)}`
+          : swaggerUiUrl;
+      window.open(targetUrl, '_blank', 'noopener,noreferrer');
       return;
     }
 
@@ -132,7 +183,7 @@ const SwaggerDocsModal: React.FC<SwaggerDocsModalProps> = ({ accessToken, onClos
     window.open(blobUrl, '_blank', 'noopener,noreferrer');
 
     window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
-  }, [swaggerHtmlDocument]);
+  }, [accessToken, swaggerHtmlDocument, swaggerUiUrl]);
 
   return (
     <div className="swagger-modal-overlay" onClick={handleOverlayClick}>
