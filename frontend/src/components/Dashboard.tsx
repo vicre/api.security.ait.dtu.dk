@@ -97,32 +97,49 @@ const Dashboard: React.FC = () => {
 
   const handleFetchApiToken = useCallback(async () => {
     setApiTokenFeedback(null);
+    setIsApiTokenVisible(false);
 
-    const activeAccessToken = await ensureAccessToken();
-    if (!activeAccessToken) {
-      setApiToken(null);
-      setApiTokenFeedback({
-        message: 'No access token available. Please sign in again.',
-        tone: 'error'
-      });
-      return;
-    }
+    let activeAccessToken: string | null = null;
 
     setIsFetchingApiToken(true);
     try {
+      activeAccessToken = await ensureAccessToken();
       const baseUrl = resolveApiBaseUrl();
-      const response = await fetch(`${baseUrl}/myview/api/token/`, {
-        method: 'GET',
-        headers: {
-          Authorization: buildBearerToken(activeAccessToken),
-          Accept: 'application/json'
-        },
-        credentials: 'include'
-      });
+      const endpoint = `${baseUrl}/myview/api/token/`;
 
-      if (!response.ok) {
+      const fetchWithHeaders = async (headers: HeadersInit) =>
+        fetch(endpoint, {
+          method: 'GET',
+          headers,
+          credentials: 'include'
+        });
+
+      const buildErrorMessage = async (response: Response) => {
         const message = await response.text();
-        throw new Error(message || `Request failed with status ${response.status}`);
+        return message || `Request failed with status ${response.status}`;
+      };
+
+      let response: Response | null = null;
+
+      if (activeAccessToken) {
+        const bearerResponse = await fetchWithHeaders({
+          Accept: 'application/json',
+          Authorization: buildBearerToken(activeAccessToken)
+        });
+
+        if (bearerResponse.ok) {
+          response = bearerResponse;
+        } else if (![401, 403].includes(bearerResponse.status)) {
+          throw new Error(await buildErrorMessage(bearerResponse));
+        }
+      }
+
+      if (!response) {
+        const fallbackResponse = await fetchWithHeaders({ Accept: 'application/json' });
+        if (!fallbackResponse.ok) {
+          throw new Error(await buildErrorMessage(fallbackResponse));
+        }
+        response = fallbackResponse;
       }
 
       const payload = (await response.json()) as { api_token?: string | null };
@@ -140,8 +157,11 @@ const Dashboard: React.FC = () => {
       }
     } catch (error) {
       console.error('❌ Failed to load API token:', error);
+      setApiToken(null);
       setApiTokenFeedback({
-        message: 'Failed to load API token. Please try again.',
+        message: activeAccessToken
+          ? 'Failed to load API token. Please try again.'
+          : 'No access token available. Please sign in again.',
         tone: 'error'
       });
     } finally {
@@ -169,6 +189,7 @@ const Dashboard: React.FC = () => {
       return;
     }
 
+    setIsApiTokenVisible(false);
     setIsRotatingApiToken(true);
     try {
       const baseUrl = resolveApiBaseUrl();
@@ -243,6 +264,11 @@ const Dashboard: React.FC = () => {
   }, [authStatus, handleFetchApiToken]);
 
   const isApiTokenBusy = isFetchingApiToken || isRotatingApiToken;
+  const fetchButtonLabel = isFetchingApiToken
+    ? 'Loading…'
+    : apiToken
+      ? 'Refresh API token'
+      : 'Load API token';
   const apiTokenStatusClass = isApiTokenBusy
     ? 'token-status-pill--loading'
     : apiToken
@@ -332,7 +358,7 @@ const Dashboard: React.FC = () => {
               onClick={handleFetchApiToken}
               disabled={isFetchingApiToken}
             >
-              {isFetchingApiToken ? 'Loading…' : 'Refresh token'}
+              {fetchButtonLabel}
             </button>
             <button
               type="button"
