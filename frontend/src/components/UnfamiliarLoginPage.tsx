@@ -559,6 +559,20 @@ const UnfamiliarLoginPage: React.FC<UnfamiliarLoginPageProps> = ({ accessToken, 
     }
   }, [eventsWithCoordinates, fitMapToEvents]);
 
+  useEffect(() => {
+    if (!isMapReady) {
+      return;
+    }
+
+    const mapInstance = mapRef.current?.getMap();
+    if (!mapInstance) {
+      return;
+    }
+
+    mapInstance.scrollZoom.enable({ around: 'center' });
+    mapInstance.touchZoomRotate.enable({ around: 'center' });
+  }, [isMapReady]);
+
   const handleSelectEvent = (event: SignInEvent) => {
     setSelectedEventId(event.id);
     if (typeof event.longitude === 'number' && typeof event.latitude === 'number') {
@@ -901,7 +915,8 @@ const UnfamiliarLoginPage: React.FC<UnfamiliarLoginPageProps> = ({ accessToken, 
               mapStyle={DEFAULT_STYLE}
               projection="globe"
               style={{ width: '100%', height: '100%' }}
-              scrollZoom
+              scrollZoom={{ around: 'center' }}
+              touchZoomRotate={{ around: 'center' }}
               dragPan
               attributionControl={false}
               interactiveLayerIds={[LOCATION_LAYER_ID]}
