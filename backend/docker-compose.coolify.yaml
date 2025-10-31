@@ -50,7 +50,7 @@ services:
       - static_data:/data/static
       - media_data:/data/media
     networks:
-      - internal
+      - ${DOCKER_NETWORK:-internal}
       - proxy
     labels:
       - "traefik.enable=true"
@@ -72,7 +72,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - internal
+      - ${DOCKER_NETWORK:-internal}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-app}"]
       interval: 10s
@@ -86,7 +86,7 @@ services:
     volumes:
       - redis_data:/data
     networks:
-      - internal
+      - ${DOCKER_NETWORK:-internal}
 
 volumes:
   postgres_data:
@@ -95,8 +95,9 @@ volumes:
   redis_data:
 
 networks:
-  internal:
+  ${DOCKER_NETWORK:-internal}:
     driver: bridge
   proxy:
     external: true
     name: ${TRAEFIK_NETWORK:-coolify}
+
