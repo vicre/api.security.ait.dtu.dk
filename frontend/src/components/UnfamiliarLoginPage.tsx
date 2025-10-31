@@ -442,6 +442,41 @@ const locationLayer: LayerProps = {
 
 const DEFAULT_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
 
+const TIMELINE_SPLIT_STORAGE_KEY = 'signinTimelineSplit';
+const DETAILS_EXPANDED_STORAGE_KEY = 'signinDetailsExpanded';
+const TIMELINE_SPLIT_DEFAULT = 44;
+const TIMELINE_SPLIT_MIN = 28;
+const TIMELINE_SPLIT_MAX = 72;
+
+const clampTimelineSplit = (value: number): number =>
+  Math.min(Math.max(value, TIMELINE_SPLIT_MIN), TIMELINE_SPLIT_MAX);
+
+const readStoredTimelineSplit = (): number => {
+  if (typeof window === 'undefined') {
+    return TIMELINE_SPLIT_DEFAULT;
+  }
+
+  try {
+    const stored = window.localStorage.getItem(TIMELINE_SPLIT_STORAGE_KEY);
+    const parsed = stored ? Number.parseFloat(stored) : NaN;
+    return Number.isFinite(parsed) ? clampTimelineSplit(parsed) : TIMELINE_SPLIT_DEFAULT;
+  } catch {
+    return TIMELINE_SPLIT_DEFAULT;
+  }
+};
+
+const readStoredDetailsExpanded = (): boolean => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  try {
+    return window.localStorage.getItem(DETAILS_EXPANDED_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+};
+
 const UnfamiliarLoginPage: React.FC<UnfamiliarLoginPageProps> = ({
   accessToken,
   backendApiToken,
@@ -457,7 +492,24 @@ const UnfamiliarLoginPage: React.FC<UnfamiliarLoginPageProps> = ({
   const [activeLookback, setActiveLookback] = useState<string>('7d');
   const [contextMenuState, setContextMenuState] = useState<ContextMenuState | null>(null);
   const [isMapReady, setIsMapReady] = useState(false);
+  const [rawCopyStatus, setRawCopyStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [timelineListWidthPercent, setTimelineListWidthPercent] = useState<number>(
+    readStoredTimelineSplit
+  );
+  const [isDetailsExpanded, setIsDetailsExpanded] =
+    useState<boolean>(readStoredDetailsExpanded);
+  const [isTimelineResizing, setIsTimelineResizing] = useState(false);
+  const copyStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timelineBodyRef = useRef<HTMLDivElement | null>(null);
+  const activeResizerPointerIdRef = useRef<number | null>(null);
   const geolocationCacheRef = useRef<Map<string, GeoLookupResult>>(new Map());
+
+  const clearCopyStatusTimeout = useCallback(() => {
+    if (copyStatusTimeoutRef.current) {
+      clearTimeout(copyStatusTimeoutRef.current);
+      copyStatusTimeoutRef.current = null;
+    }
+  }, []);
 
   const authContext = useMemo(() => {
     const manualToken = backendApiToken?.trim();
@@ -560,6 +612,160 @@ const UnfamiliarLoginPage: React.FC<UnfamiliarLoginPageProps> = ({
     };
   }, [contextMenuState]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(TIMELINE_SPLIT_STORAGE_KEY, timelineListWidthPercent.toFixed(2));
+    } catch {
+      // Ignore storage write failures (e.g. private mode)
+    }
+  }, [timelineListWidthPercent]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(DETAILS_EXPANDED_STORAGE_KEY, String(isDetailsExpanded));
+    } catch {
+      // Ignore storage write failures (e.g. private mode)
+    }
+  }, [isDetailsExpanded]);
+
+  useEffect(() => {
+    if (!isTimelineResizing) {
+      return;
+    }
+
+    const handlePointerMove = (event: PointerEvent) => {
+      if (event.pointerId !== activeResizerPointerIdRef.current) {
+        return;
+      }
+
+      const container = timelineBodyRef.current;
+      if (!container) {
+        return;
+      }
+
+      const rect = container.getBoundingClientRect();
+      if (rect.width <= 0) {
+        return;
+      }
+
+      const rawPercent = ((event.clientX - rect.left) / rect.width) * 100;
+      setTimelineListWidthPercent(clampTimelineSplit(rawPercent));
+    };
+
+    const handlePointerUp = (event: PointerEvent) => {
+      if (event.pointerId !== activeResizerPointerIdRef.current) {
+        return;
+      }
+
+      activeResizerPointerIdRef.current = null;
+      setIsTimelineResizing(false);
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
+    };
+  }, [isTimelineResizing]);
+
+  useEffect(() => {
+    if (!isDetailsExpanded) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsDetailsExpanded(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isDetailsExpanded]);
+
+  const handleTimelineResizerPointerDown = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (!selectedEvent || !timelineBodyRef.current) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      activeResizerPointerIdRef.current = event.pointerId;
+      setIsTimelineResizing(true);
+    },
+    [selectedEvent]
+  );
+
+  const handleTimelineResizerKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (!selectedEvent) {
+        return;
+      }
+
+      const adjust = (delta: number) => {
+        setTimelineListWidthPercent(previous => clampTimelineSplit(previous + delta));
+      };
+
+      switch (event.key) {
+        case 'ArrowLeft':
+          event.preventDefault();
+          adjust(-3);
+          break;
+        case 'ArrowRight':
+          event.preventDefault();
+          adjust(3);
+          break;
+        case 'Home':
+          event.preventDefault();
+          setTimelineListWidthPercent(TIMELINE_SPLIT_MIN);
+          break;
+        case 'End':
+          event.preventDefault();
+          setTimelineListWidthPercent(TIMELINE_SPLIT_MAX);
+          break;
+        default:
+          break;
+      }
+    },
+    [selectedEvent]
+  );
+
+  const handleTimelineResizerDoubleClick = useCallback(() => {
+    if (!selectedEvent) {
+      return;
+    }
+
+    setTimelineListWidthPercent(TIMELINE_SPLIT_DEFAULT);
+  }, [selectedEvent]);
+
+  const toggleDetailsExpanded = useCallback(() => {
+    if (!selectedEvent) {
+      return;
+    }
+
+    setIsDetailsExpanded(previous => !previous);
+  }, [selectedEvent]);
+
+  const closeExpandedDetails = useCallback(() => {
+    setIsDetailsExpanded(false);
+  }, []);
+
   const fitMapToEvents = useCallback(
     (map: MaplibreMap, targetEvents: SignInEvent[]) => {
       if (!map || targetEvents.length === 0) {
@@ -604,7 +810,7 @@ const UnfamiliarLoginPage: React.FC<UnfamiliarLoginPageProps> = ({
     mapInstance.touchZoomRotate.enable({ around: 'center' });
   }, [isMapReady]);
 
-  const handleSelectEvent = (event: SignInEvent) => {
+  const handleSelectEvent = useCallback((event: SignInEvent) => {
     setSelectedEventId(event.id);
     if (typeof event.longitude === 'number' && typeof event.latitude === 'number') {
       const mapInstance = mapRef.current?.getMap();
@@ -615,7 +821,27 @@ const UnfamiliarLoginPage: React.FC<UnfamiliarLoginPageProps> = ({
         pitch: 45
       });
     }
-  };
+  }, []);
+
+  const handleMapClick = useCallback(
+    (event: MapLayerMouseEvent) => {
+      const feature = event.features?.[0] as Feature<Point> | undefined;
+      const featureId = (feature?.properties as { id?: string } | undefined)?.id;
+
+      if (featureId === null || featureId === undefined) {
+        return;
+      }
+
+      const eventId = String(featureId);
+      const targetEvent = events.find(candidate => candidate.id === eventId);
+
+      if (targetEvent) {
+        handleSelectEvent(targetEvent);
+        closeContextMenu();
+      }
+    },
+    [closeContextMenu, events, handleSelectEvent]
+  );
 
   const handleTimelineContextMenu = (
     event: React.MouseEvent<HTMLButtonElement, MouseEvent>,
@@ -658,6 +884,188 @@ const UnfamiliarLoginPage: React.FC<UnfamiliarLoginPageProps> = ({
     handleSelectEvent(contextMenuEvent);
     closeContextMenu();
   }, [closeContextMenu, contextMenuEvent]);
+
+  useEffect(() => {
+    return () => {
+      clearCopyStatusTimeout();
+    };
+  }, [clearCopyStatusTimeout]);
+
+  useEffect(() => {
+    clearCopyStatusTimeout();
+    setRawCopyStatus('idle');
+  }, [clearCopyStatusTimeout, selectedEventId]);
+
+  const handleCopyRawEvent = useCallback(async () => {
+    if (!selectedEventRawJson) {
+      return;
+    }
+
+    clearCopyStatusTimeout();
+
+    try {
+      let didCopy = false;
+
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(selectedEventRawJson);
+        didCopy = true;
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = selectedEventRawJson;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'absolute';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.select();
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        didCopy = successful;
+      }
+
+      if (!didCopy) {
+        throw new Error('Copy command was unsuccessful');
+      }
+
+      setRawCopyStatus('success');
+    } catch {
+      setRawCopyStatus('error');
+    } finally {
+      copyStatusTimeoutRef.current = setTimeout(() => {
+        setRawCopyStatus('idle');
+        copyStatusTimeoutRef.current = null;
+      }, 2000);
+    }
+  }, [clearCopyStatusTimeout, selectedEventRawJson]);
+
+  const detailsContent = useMemo(() => {
+    if (!selectedEvent) {
+      return null;
+    }
+
+    return (
+      <>
+        <div className="details-grid">
+          <div>
+            <span className="details-label">Timestamp</span>
+            <span className="details-value">{formatTimestamp(selectedEvent.timestamp)}</span>
+          </div>
+          <div>
+            <span className="details-label">Location</span>
+            <span className="details-value">
+              {selectedEvent.displayLocation}
+              {selectedEvent.geo?.isPrivate ? ' · Private network' : ''}
+            </span>
+          </div>
+          <div>
+            <span className="details-label">Coordinates</span>
+            <span className="details-value">
+              {typeof selectedEvent.latitude === 'number' && typeof selectedEvent.longitude === 'number'
+                ? `${selectedEvent.latitude.toFixed(4)}, ${selectedEvent.longitude.toFixed(4)}`
+                : 'Not available'}
+            </span>
+          </div>
+          <div>
+            <span className="details-label">Region</span>
+            <span className="details-value">
+              {[selectedEvent.geo?.city, selectedEvent.geo?.region, selectedEvent.geo?.country]
+                .filter(Boolean)
+                .join(', ') || 'Unknown'}
+            </span>
+          </div>
+          <div>
+            <span className="details-label">IP address</span>
+            <span className="details-value">
+              {selectedEvent.ipAddress ?? 'Unknown'}
+              {selectedEvent.geo?.isp ? ` · ${selectedEvent.geo.isp}` : ''}
+            </span>
+          </div>
+          <div>
+            <span className="details-label">Geo source</span>
+            <span className="details-value">
+              {selectedEvent.geo?.source === 'ipwhois'
+                ? 'ipwho.is lookup'
+                : selectedEvent.geo?.source === 'private'
+                ? 'DTU campus fallback'
+                : 'Graph data'}
+            </span>
+          </div>
+          <div>
+            <span className="details-label">Protocol</span>
+            <span className="details-value">{selectedEvent.protocol ?? 'Unknown'}</span>
+          </div>
+          <div>
+            <span className="details-label">Status</span>
+            <span className="details-value">{selectedEvent.status ?? 'Unknown'}</span>
+          </div>
+          <div>
+            <span className="details-label">Application</span>
+            <span className="details-value">{(selectedEvent.raw['Application'] as string) || 'Unknown'}</span>
+          </div>
+          <div>
+            <span className="details-label">Logon type</span>
+            <span className="details-value">{(selectedEvent.raw['LogonType'] as string) || 'Unknown'}</span>
+          </div>
+          <div>
+            <span className="details-label">Failure reason</span>
+            <span className="details-value">
+              {(selectedEvent.raw['FailureReason'] as string) || 'None reported'}
+            </span>
+          </div>
+        </div>
+        <details className="raw-event-details">
+          <summary>Raw event payload</summary>
+          <div className="raw-event-toolbar">
+            <button
+              type="button"
+              className={`raw-event-copy-button${
+                rawCopyStatus === 'success' ? ' success' : rawCopyStatus === 'error' ? ' error' : ''
+              }`}
+              onClick={handleCopyRawEvent}
+            >
+              {rawCopyStatus === 'success'
+                ? 'Copied!'
+                : rawCopyStatus === 'error'
+                ? 'Copy failed'
+                : 'Copy payload'}
+            </button>
+            {rawCopyStatus === 'error' && (
+              <span className="raw-event-copy-feedback">Clipboard access unavailable</span>
+            )}
+          </div>
+          <pre>{selectedEventRawJson}</pre>
+        </details>
+      </>
+    );
+  }, [handleCopyRawEvent, rawCopyStatus, selectedEvent, selectedEventRawJson]);
+
+  const timelinePanelClassName = useMemo(() => {
+    const classes = ['timeline-panel'];
+    if (selectedEvent) {
+      classes.push('has-details');
+    }
+    if (isDetailsExpanded) {
+      classes.push('details-expanded');
+    }
+    if (isTimelineResizing) {
+      classes.push('resizing');
+    }
+    return classes.join(' ');
+  }, [isDetailsExpanded, isTimelineResizing, selectedEvent]);
+
+  const timelineListStyle = useMemo(
+    () => (selectedEvent ? { flexBasis: `${timelineListWidthPercent}%` } : undefined),
+    [selectedEvent, timelineListWidthPercent]
+  );
+
+  const timelineDetailsStyle = useMemo(
+    () => ({ flexBasis: `${100 - timelineListWidthPercent}%` }),
+    [timelineListWidthPercent]
+  );
+
+  const resizerClassName = useMemo(
+    () => `timeline-resizer${isTimelineResizing ? ' dragging' : ''}`,
+    [isTimelineResizing]
+  );
 
   const resolveIpGeolocation = useCallback(
     async (ip: string): Promise<GeoLookupResult> => {
@@ -941,7 +1349,7 @@ const UnfamiliarLoginPage: React.FC<UnfamiliarLoginPageProps> = ({
         </form>
 
         <section className="signin-content">
-          <div className="globe-panel">
+          <div className={`globe-panel${selectedEvent && isDetailsExpanded ? ' details-overlay-active' : ''}`}>
             <MapComponent
               ref={mapRef}
               initialViewState={DEFAULT_VIEW}
@@ -953,6 +1361,7 @@ const UnfamiliarLoginPage: React.FC<UnfamiliarLoginPageProps> = ({
               dragPan
               attributionControl={false}
               interactiveLayerIds={[LOCATION_LAYER_ID]}
+              onClick={handleMapClick}
               onContextMenu={handleMapContextMenu}
               onLoad={() => setIsMapReady(true)}
             >
@@ -990,6 +1399,28 @@ const UnfamiliarLoginPage: React.FC<UnfamiliarLoginPageProps> = ({
                   </Popup>
                 )}
             </MapComponent>
+            {selectedEvent && isDetailsExpanded && (
+              <div className="details-expanded-overlay" role="dialog" aria-modal="true">
+                <div className="details-expanded-overlay__header">
+                  <div className="details-expanded-overlay__titles">
+                    <span className="details-expanded-overlay__title">Sign-in details</span>
+                    <span className="details-expanded-overlay__subtitle">
+                      {selectedEvent.displayLocation}
+                      {' • '}
+                      {formatTimestamp(selectedEvent.timestamp)}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="details-expanded-overlay__close"
+                    onClick={closeExpandedDetails}
+                  >
+                    Close expanded view
+                  </button>
+                </div>
+                <div className="details-expanded-overlay__body">{detailsContent}</div>
+              </div>
+            )}
             {activeUser && events.length > 0 && (
               <div className="globe-caption">
                 Highlighting sign-ins for <strong>{activeUser}</strong>
@@ -1003,7 +1434,7 @@ const UnfamiliarLoginPage: React.FC<UnfamiliarLoginPageProps> = ({
             )}
           </div>
 
-          <aside className="timeline-panel">
+          <aside className={timelinePanelClassName}>
             <div className="timeline-header">
               <h3>Sign-ins</h3>
               <span>{events.length}</span>
@@ -1019,107 +1450,63 @@ const UnfamiliarLoginPage: React.FC<UnfamiliarLoginPageProps> = ({
 
             {loading && <div className="loading-indicator">Loading sign-ins…</div>}
 
-            <div className="timeline-list">
-              {events.map(event => (
-                <button
-                  key={event.id}
-                  onClick={() => handleSelectEvent(event)}
-                  onContextMenu={mouseEvent => handleTimelineContextMenu(mouseEvent, event)}
-                  className={`timeline-item${event.id === selectedEventId ? ' active' : ''}`}
-                  type="button"
-                >
-                  <span className="event-location">{event.displayLocation}</span>
-                  <span className="event-timestamp">{formatTimestamp(event.timestamp)}</span>
-                  <span className="event-meta">
-                    {event.ipAddress ? `IP ${event.ipAddress}` : 'IP unknown'}
-                    {event.protocol ? ` · ${event.protocol}` : ''}
-                    {event.status ? ` · ${event.status}` : ''}
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            {selectedEvent && (
-              <div className="timeline-details">
-                <h4>Sign-in details</h4>
-                <div className="details-grid">
-                  <div>
-                    <span className="details-label">Timestamp</span>
-                    <span className="details-value">{formatTimestamp(selectedEvent.timestamp)}</span>
-                  </div>
-                  <div>
-                    <span className="details-label">Location</span>
-                    <span className="details-value">
-                      {selectedEvent.displayLocation}
-                      {selectedEvent.geo?.isPrivate ? ' · Private network' : ''}
+            <div
+              className={`timeline-body${selectedEvent ? '' : ' timeline-body--single'}`}
+              ref={timelineBodyRef}
+            >
+              <div className="timeline-list" style={timelineListStyle}>
+                {events.map(event => (
+                  <button
+                    key={event.id}
+                    onClick={() => handleSelectEvent(event)}
+                    onContextMenu={mouseEvent => handleTimelineContextMenu(mouseEvent, event)}
+                    className={`timeline-item${event.id === selectedEventId ? ' active' : ''}`}
+                    type="button"
+                  >
+                    <span className="event-location">{event.displayLocation}</span>
+                    <span className="event-timestamp">{formatTimestamp(event.timestamp)}</span>
+                    <span className="event-meta">
+                      {event.ipAddress ? `IP ${event.ipAddress}` : 'IP unknown'}
+                      {event.protocol ? ` · ${event.protocol}` : ''}
+                      {event.status ? ` · ${event.status}` : ''}
                     </span>
-                  </div>
-                  <div>
-                    <span className="details-label">Coordinates</span>
-                    <span className="details-value">
-                      {typeof selectedEvent.latitude === 'number' && typeof selectedEvent.longitude === 'number'
-                        ? `${selectedEvent.latitude.toFixed(4)}, ${selectedEvent.longitude.toFixed(4)}`
-                        : 'Not available'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="details-label">Region</span>
-                    <span className="details-value">
-                      {[selectedEvent.geo?.city, selectedEvent.geo?.region, selectedEvent.geo?.country]
-                        .filter(Boolean)
-                        .join(', ') || 'Unknown'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="details-label">IP address</span>
-                    <span className="details-value">
-                      {selectedEvent.ipAddress ?? 'Unknown'}
-                      {selectedEvent.geo?.isp ? ` · ${selectedEvent.geo.isp}` : ''}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="details-label">Geo source</span>
-                    <span className="details-value">
-                      {selectedEvent.geo?.source === 'ipwhois'
-                        ? 'ipwho.is lookup'
-                        : selectedEvent.geo?.source === 'private'
-                        ? 'DTU campus fallback'
-                        : 'Graph data'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="details-label">Protocol</span>
-                    <span className="details-value">{selectedEvent.protocol ?? 'Unknown'}</span>
-                  </div>
-                  <div>
-                    <span className="details-label">Status</span>
-                    <span className="details-value">{selectedEvent.status ?? 'Unknown'}</span>
-                  </div>
-                  <div>
-                    <span className="details-label">Application</span>
-                    <span className="details-value">
-                      {(selectedEvent.raw['Application'] as string) || 'Unknown'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="details-label">Logon type</span>
-                    <span className="details-value">
-                      {(selectedEvent.raw['LogonType'] as string) || 'Unknown'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="details-label">Failure reason</span>
-                    <span className="details-value">
-                      {(selectedEvent.raw['FailureReason'] as string) || 'None reported'}
-                    </span>
-                  </div>
-                </div>
-                <details className="raw-event-details">
-                  <summary>Raw event payload</summary>
-                  <pre>{selectedEventRawJson}</pre>
-                </details>
+                  </button>
+                ))}
               </div>
-            )}
+
+              {selectedEvent && (
+                <>
+                  <div
+                    className={resizerClassName}
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label="Resize sign-in list and details"
+                    aria-valuemin={TIMELINE_SPLIT_MIN}
+                    aria-valuemax={TIMELINE_SPLIT_MAX}
+                    aria-valuenow={Math.round(timelineListWidthPercent)}
+                    tabIndex={0}
+                    onPointerDown={handleTimelineResizerPointerDown}
+                    onKeyDown={handleTimelineResizerKeyDown}
+                    onDoubleClick={handleTimelineResizerDoubleClick}
+                    title="Drag to resize the list and details. Double-click to reset."
+                  />
+                  <div className="timeline-details" style={timelineDetailsStyle}>
+                    <div className="timeline-details__header">
+                      <h4>Sign-in details</h4>
+                      <button
+                        type="button"
+                        className={`timeline-details__expand-button${isDetailsExpanded ? ' active' : ''}`}
+                        onClick={toggleDetailsExpanded}
+                        aria-pressed={isDetailsExpanded}
+                      >
+                        {isDetailsExpanded ? 'Exit expanded view' : 'Expand view'}
+                      </button>
+                    </div>
+                    <div className="timeline-details__body">{detailsContent}</div>
+                  </div>
+                </>
+              )}
+            </div>
           </aside>
         </section>
         {contextMenuState && contextMenuEvent && (
