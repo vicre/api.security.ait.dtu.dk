@@ -290,6 +290,7 @@ default_allowed_hosts = [
     '127.0.0.1',
     '192.38.87.230',
     'api.security.ait.dtu.dk',
+    'dev-api.security.ait.dtu.dk',
     'beta-api.security.ait.dtu.dk',
 ]
 

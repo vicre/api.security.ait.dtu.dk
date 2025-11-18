@@ -24,6 +24,17 @@ APP_MAIN_DIR = Path(__file__).resolve().parents[1]
 BACKEND_DIR = APP_MAIN_DIR.parent
 COMPOSE_PATH = BACKEND_DIR / "docker-compose.coolify.yaml"
 DATA_DIR = Path(os.environ.get("DJANGO_DOCKER_DATA_DIR", "/data"))
+PRIMARY_HOSTNAME = "api.security.ait.dtu.dk"
+DEV_HOSTNAME = os.environ.get("DJANGO_DEV_HOSTNAME", "dev-api.security.ait.dtu.dk").strip()
+
+
+def _normalize_token_list(raw_value: str | None) -> list[str]:
+    """Return a sanitized list of comma-separated tokens."""
+
+    if not raw_value:
+        return []
+
+    return [token.strip() for token in raw_value.split(",") if token.strip()]
 
 
 def _resolve_compose_default(raw_value: str) -> str | None:
@@ -42,6 +53,64 @@ def _resolve_compose_default(raw_value: str) -> str | None:
         return None
 
     return value
+
+
+def _ensure_env_list(var_name: str, required_values: list[str]) -> None:
+    """Ensure ``required_values`` are present in a comma-separated env var."""
+
+    existing = _normalize_token_list(os.environ.get(var_name))
+    changed = False
+
+    for value in required_values:
+        if not value or value in existing:
+            continue
+        existing.append(value)
+        changed = True
+
+    if changed or var_name not in os.environ:
+        os.environ[var_name] = ",".join(existing)
+
+
+# Ensure the dev hostname resolves locally so the certificate CN matches.
+def _ensure_dev_hostname_in_hosts(hostname: str) -> None:
+    """Append a loopback mapping for ``hostname`` to /etc/hosts if missing."""
+
+    if not hostname:
+        return
+
+    hosts_path = Path("/etc/hosts")
+    try:
+        lines = hosts_path.read_text().splitlines()
+    except OSError as exc:
+        warnings.warn(
+            f"Unable to read {hosts_path} while preparing dev hostname '{hostname}': {exc}",
+            stacklevel=2,
+        )
+        return
+
+    def _split_hosts_line(line: str) -> list[str]:
+        parts = line.split()
+        return parts[1:] if parts else []
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if hostname in _split_hosts_line(stripped):
+            return  # Already present
+
+    addition = f"127.0.0.1\t{hostname}"
+    try:
+        with hosts_path.open("a", encoding="utf-8") as handle:
+            if lines and lines[-1].strip():
+                handle.write("\n")
+            handle.write(addition + "\n")
+    except OSError as exc:
+        warnings.warn(
+            f"Unable to write '{addition}' to {hosts_path}; "
+            f"add the mapping manually to reach https://{hostname}: {exc}",
+            stacklevel=2,
+        )
 
 
 def _apply_compose_defaults() -> None:
@@ -83,11 +152,34 @@ _apply_compose_defaults()
 # them (for example when running outside Docker but still targeting the
 # production stack).
 os.environ.setdefault("DJANGO_SECRET", "local-dev-insecure-secret")
-os.environ.setdefault("DJANGO_ALLOWED_HOSTS", "api.security.ait.dtu.dk,localhost,127.0.0.1")
-os.environ.setdefault("DJANGO_CSRF_TRUSTED_ORIGINS", "https://api.security.ait.dtu.dk")
+_ensure_env_list(
+    "DJANGO_ALLOWED_HOSTS",
+    [
+        PRIMARY_HOSTNAME,
+        "beta-api.security.ait.dtu.dk",
+        DEV_HOSTNAME,
+        "localhost",
+        "127.0.0.1",
+    ],
+)
+_ensure_env_list(
+    "DJANGO_CSRF_TRUSTED_ORIGINS",
+    [
+        f"https://{PRIMARY_HOSTNAME}",
+        f"https://{DEV_HOSTNAME}",
+    ],
+)
+os.environ.setdefault("DJANGO_CSRF_COOKIE_DOMAIN", ".security.ait.dtu.dk")
+# Keep SERVICE_* aligned with the dev hostname so redirect URLs and Azure values
+# match the local certificate CN.
+if DEV_HOSTNAME:
+    os.environ.setdefault("SERVICE_FQDN_WEB", DEV_HOSTNAME)
+    os.environ.setdefault("SERVICE_URL_WEB", f"https://{DEV_HOSTNAME}")
 os.environ.setdefault("DJANGO_STATIC_ROOT", str(DATA_DIR / "static"))
 os.environ.setdefault("DJANGO_MEDIA_ROOT", str(DATA_DIR / "media"))
 os.environ.setdefault("CACHE_URL", "redis://redis:6379/0")
+# Try to ensure the dev hostname resolves locally without manual tweaks.
+_ensure_dev_hostname_in_hosts(DEV_HOSTNAME)
 
 # Ensure the backing directories exist so collectstatic/media writes behave the
 # same way they do in the container.
