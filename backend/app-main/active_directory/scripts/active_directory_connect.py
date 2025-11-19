@@ -1,5 +1,5 @@
 # load modules
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 import os
 from typing import Optional, Tuple
 from urllib.parse import urlparse
@@ -7,8 +7,7 @@ from urllib.parse import urlparse
 from ldap3 import ALL, Connection, Server
 
 # Load .env file
-dotenv_path = '/usr/src/project/.devcontainer/.env'
-load_dotenv(dotenv_path=dotenv_path)
+load_dotenv(dotenv_path=find_dotenv())
 
 
 def _get_clean_env(name: str) -> Optional[str]:

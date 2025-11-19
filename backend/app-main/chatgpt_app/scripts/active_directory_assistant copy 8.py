@@ -7,9 +7,8 @@ def run_assistant_query(user_query):
     from datetime import datetime, date
     from django.conf import settings
     # load the .env file
-    from dotenv import load_dotenv
-    dotenv_path = '/usr/src/project/.devcontainer/.env'
-    load_dotenv(dotenv_path=dotenv_path)
+    from dotenv import load_dotenv, find_dotenv
+    load_dotenv(dotenv_path=find_dotenv())
 
     openai.api_key = os.getenv("OPENAI_API_KEY")
     admin_api_key = os.getenv("DJANGO_SUPERUSER_APIKEY")

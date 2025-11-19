@@ -10,7 +10,7 @@ services:
     image: dtuait/api-security-ait-dtu-dk-app-main:dev-latest
     command: sleep infinity
     env_file:
-      - ./.env
+      - ../backend/.env
     restart: always
     tty: true
     working_dir: /workspace/backend/app-main
@@ -46,6 +46,7 @@ services:
       CACHE_URL: ${CACHE_URL}
       DJANGO_MIGRATE: "false"
       DJANGO_COLLECTSTATIC: "false"
+      APP_ENV_FILE: /workspace/backend/.env
     volumes:
       - ../:/workspace
       - ../backend/shared-project-data:/mnt/shared-project-data
@@ -60,7 +61,7 @@ services:
     image: postgres:16
     restart: always
     env_file:
-      - ./.env
+      - ../backend/.env
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}

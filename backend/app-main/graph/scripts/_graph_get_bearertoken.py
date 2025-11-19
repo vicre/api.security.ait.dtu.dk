@@ -6,7 +6,7 @@ from datetime import timedelta
 import requests
 from django.db import OperationalError, ProgrammingError, transaction
 from django.utils import timezone
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 
 from ..models import ServiceToken
 from ._http import graph_request
@@ -58,8 +58,7 @@ def _generate_new_token():
     """Generate a new Microsoft Graph access token using client credentials."""
 
     # Ensure environment variables are loaded before attempting the request.
-    env_path = os.getenv("APP_ENV_FILE", "/usr/src/project/.devcontainer/.env")
-    load_dotenv(dotenv_path=env_path, override=False)
+    load_dotenv(dotenv_path=os.getenv("APP_ENV_FILE") or find_dotenv(), override=False)
 
     tenant_id = os.getenv("AZURE_TENANT_ID")
     client_id = os.getenv("GRAPH_CLIENT_ID")
@@ -218,4 +217,3 @@ def run():
 
 if __name__ == "__main__":
     run()
-

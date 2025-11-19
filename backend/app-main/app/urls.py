@@ -20,11 +20,10 @@ from django.views.generic.base import RedirectView
 from django.conf import settings
 from django.conf.urls.static import static
 from .views import msal_callback, msal_login, msal_director, msal_logout, health_check
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 from django.views.static import serve
 from django.urls import re_path
-dotenv_path = '/usr/src/project/.devcontainer/.env'
-load_dotenv(dotenv_path=dotenv_path)
+load_dotenv(dotenv_path=find_dotenv())
 
 admin_path = settings.ADMIN_URL_PATH
 

@@ -1,12 +1,12 @@
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import check_password
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 import os
 
 class Command(BaseCommand):
     def handle(self, *args, **options):
-        load_dotenv(dotenv_path='/usr/src/project/.devcontainer/.env')
+        load_dotenv(dotenv_path=find_dotenv(), override=False)
         username = os.getenv('DJANGO_SUPERUSER_USERNAME')
         password = os.getenv('DJANGO_SUPERUSER_PASSWORD')
 

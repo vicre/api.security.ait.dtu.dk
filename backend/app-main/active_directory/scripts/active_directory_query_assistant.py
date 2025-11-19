@@ -5,9 +5,8 @@ def active_directory_query_assistant(*, user_prompt, context=None, create_title=
     import requests
     from datetime import datetime, date
     from django.conf import settings
-    from dotenv import load_dotenv
-    dotenv_path = '/usr/src/project/.devcontainer/.env'
-    load_dotenv(dotenv_path=dotenv_path)
+    from dotenv import load_dotenv, find_dotenv
+    load_dotenv(dotenv_path=find_dotenv())
 
     openai.api_key = os.getenv("OPENAI_API_KEY")
     admin_api_key = os.getenv("DJANGO_SUPERUSER_APIKEY")

@@ -5,7 +5,7 @@ from datetime import timedelta
 import requests
 from django.db import OperationalError, ProgrammingError, transaction
 from django.utils import timezone
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 
 from graph.models import ServiceToken
 
@@ -35,8 +35,7 @@ DEFAULT_TOKEN_TTL_SECONDS = int(os.getenv("DEFENDER_ACCESS_BEARER_TOKEN_TTL", "3
 
 
 def _generate_new_token():
-    env_path = os.getenv("APP_ENV_FILE", "/usr/src/project/.devcontainer/.env")
-    load_dotenv(dotenv_path=env_path, override=False)
+    load_dotenv(dotenv_path=os.getenv("APP_ENV_FILE") or find_dotenv(), override=False)
 
     url = f"https://login.microsoftonline.com/{os.getenv('AZURE_TENANT_ID')}/oauth2/token"
 

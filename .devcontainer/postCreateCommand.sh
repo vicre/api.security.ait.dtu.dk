@@ -165,16 +165,18 @@ cd "$current_pwd"
 
 # ------------------------------
 # Django setup: migrate and ensure admin user (idempotent)
-# Uses env vars from .devcontainer/.env:
+# Uses env vars from backend/.env:
 #   DJANGO_ADMIN_USERNAME, DJANGO_ADMIN_PASSWORD
 # ------------------------------
 
 # Load project .env if present (export variables)
-if [ -f "$workspace_dir/.devcontainer/.env" ]; then
+env_file="$workspace_dir/backend/.env"
+if [ -f "$env_file" ]; then
     set -a
     # shellcheck disable=SC1090
-    source "$workspace_dir/.devcontainer/.env"
+    source "$env_file"
     set +a
+    export APP_ENV_FILE="$env_file"
 fi
 
 # Pick Python executable

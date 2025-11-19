@@ -1,5 +1,5 @@
 from openai import OpenAI
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 import os, requests, json
 
 
@@ -55,9 +55,7 @@ if __name__ == "__main__":
 
 
 def get_openai_completion(system: str, user: str):
-    # Specify the environment file path
-    env_path = '/usr/src/project/.devcontainer/.env'
-    load_dotenv(dotenv_path=env_path)
+    load_dotenv(dotenv_path=find_dotenv())
 
     # Create OpenAI client and set the API key
     client = OpenAI()

@@ -9,8 +9,6 @@ services:
     # Use Dockerfile's default CMD: gunicorn app.wsgi:application --bind 0.0.0.0:8121
     restart: unless-stopped
     working_dir: /app/app-main
-    expose:
-      - "8121"
     depends_on:
       db:
         condition: service_healthy
@@ -59,7 +57,7 @@ services:
       - "traefik.http.routers.${TRAEFIK_ROUTER_NAME:-api_security}.tls.domains[0].main=${SERVICE_FQDN_WEB:-api.security.ait.dtu.dk}"
       - "traefik.http.routers.${TRAEFIK_ROUTER_NAME:-api_security}.tls.certresolver="
       - "traefik.http.services.${TRAEFIK_SERVICE_NAME:-api_security}.loadbalancer.server.port=8121"
-      - "traefik.docker.network=${TRAEFIK_NETWORK:-coolify}"
+      - "traefik.docker.network=${TRAEFIK_NETWORK:-api-security-proxy}"
 
   db:
     image: postgres:16
@@ -98,5 +96,7 @@ networks:
     driver: bridge
     name: ${DOCKER_NETWORK:-api-security-internal}
   proxy:
-    external: true
-    name: ${TRAEFIK_NETWORK:-coolify}
+    driver: bridge
+    name: ${TRAEFIK_NETWORK:-api-security-proxy}
+    attachable: true
+    external: ${TRAEFIK_NETWORK_EXTERNAL:-false}

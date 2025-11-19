@@ -29,9 +29,9 @@ This app is designed for environments with multiple sub-IT departments, where se
 
 This repository ships with a [VS Code Dev Container](https://code.visualstudio.com/docs/devcontainers/containers) configuration
 in `.devcontainer/`. The default `my-development-docker-compose.yaml` file mirrors the production stack, but keeps the Django
-process idle so you can run management commands directly from your IDE. Copy `.devcontainer/.env.example` to
-`.devcontainer/.env`, supply the required secrets, and open the folder with the "Dev Containers" VS Code extension to start
-developing.
+process idle so you can run management commands directly from your IDE. Copy `backend/.env.example` to `backend/.env`, supply the
+required secrets (the same file is bind-mounted into the dev container), and open the folder with the "Dev Containers" VS Code
+extension to start developing.
 
 ## Token Storage and Microsoft APIs
 
@@ -59,10 +59,9 @@ At a minimum you will:
    `POSTGRES_*` credentials, admin bootstrap credentials (`DJANGO_ADMIN_USERNAME` and `DJANGO_ADMIN_PASSWORD`), the optional
    `TRAEFIK_NETWORK` override, and any integration secrets you require.
 2. Create a Coolify **Docker Compose** application that points to this repository and select `docker-compose.coolify.yml` as the
-   compose file. The default Traefik labels expect the external network to be called `coolify-network` and will bind the router
-   to the standard `https` entrypoint. If your Coolify host does not already have that network, SSH into the host once and run
-   `docker network create coolify-network` (or set `TRAEFIK_NETWORK` to the Traefik network name you actually use) before
-   triggering a deployment.
+   compose file. By default the stack creates its own Traefik network called `api-security-proxy` and the labels route traffic
+   across that network. If you prefer to reuse an existing proxy network such as `coolify-network`, set `TRAEFIK_NETWORK` to the
+   network name and `TRAEFIK_NETWORK_EXTERNAL=true` before triggering a deployment.
 3. Deploy the stack. Coolify will build the image from `Dockerfile`, run database migrations and `collectstatic` via
    `docker/entrypoint.sh`, and expose the site through Traefik on the hostname configured by `SERVICE_FQDN_WEB`.
 
@@ -88,7 +87,8 @@ Required at deploy time (Coolify will prompt):
 
 Optional routing variables (labels):
 
-- `TRAEFIK_NETWORK` (override if your Traefik network is not `coolify-network`)
+- `TRAEFIK_NETWORK` (default `api-security-proxy`; override if using a different Traefik network)
+- `TRAEFIK_NETWORK_EXTERNAL` (set to `true` when referencing a pre-created/external Traefik network)
 
 ### Using a custom TLS certificate with Coolify's Traefik
 
@@ -126,11 +126,10 @@ To run the same stack locally without Coolify:
 cp .env.example .env
 # Update POSTGRES_PASSWORD if you do not want to use the default `please-change-me`
 # and ensure the value matches the password stored in the PostgreSQL volume.
-# Create the external Traefik network expected by the compose file (run once)
-docker network create coolify-network
 docker compose -f docker-compose.coolify.yml up --build
 ```
 
 The web container automatically waits for PostgreSQL, applies migrations, and runs `collectstatic` on startup. Static and
 media files persist across deployments via the named volumes defined in the compose file. If your Traefik network has a
-different name locally, set `TRAEFIK_NETWORK=<your-network>` before starting Compose instead of creating `coolify-network`.
+different name or is managed externally, set `TRAEFIK_NETWORK=<your-network>` and `TRAEFIK_NETWORK_EXTERNAL=true` before
+starting Compose.

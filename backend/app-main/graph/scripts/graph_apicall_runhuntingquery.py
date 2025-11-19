@@ -2,7 +2,7 @@ import pyodbc
 import os
 import json
 import time
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 from ._graph_get_bearertoken import _get_bearertoken
 from ._http import graph_request
 
@@ -29,8 +29,7 @@ from ._http import graph_request
 
 
 # Load environment variables from .env file
-dotenv_path = '/usr/src/project/.devcontainer/.env'
-load_dotenv(dotenv_path=dotenv_path)
+load_dotenv(dotenv_path=find_dotenv())
 
 def run_hunting_query(query):
 

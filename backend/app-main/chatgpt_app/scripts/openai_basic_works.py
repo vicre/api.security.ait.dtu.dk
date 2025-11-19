@@ -1,11 +1,10 @@
 from openai import OpenAI
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 import os
 
 def run():
     # Specify the environment file path
-    env_path = '/usr/src/project/.devcontainer/.env'
-    load_dotenv(dotenv_path=env_path)
+    load_dotenv(dotenv_path=find_dotenv())
 
     client = OpenAI()
     client.api_key = os.getenv("OPENAI_API_KEY")

@@ -1,5 +1,5 @@
 from openai import OpenAI
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 from pydantic import BaseModel
 import os
 import re
@@ -19,8 +19,7 @@ class CalendarEvent(BaseModel):
 
 def run():
     # Load environment variables
-    env_path = '/usr/src/project/.devcontainer/.env'
-    load_dotenv(dotenv_path=env_path)
+    load_dotenv(dotenv_path=find_dotenv())
 
     client = OpenAI()
     client.api_key = os.getenv("OPENAI_API_KEY")
