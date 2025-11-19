@@ -55,9 +55,9 @@
                 "runserver_plus",
                 "0.0.0.0:8121",
                 "--cert-file",
-                "${env:DJANGO_DEV_CERT_FILE}",
+                "/workspace/certs/fullchain.pem",
                 "--key-file",
-                "${env:DJANGO_DEV_KEY_FILE}",
+                "/workspace/certs/privkey.pem",
                 "--settings",
                 "app.production_settings"
             ],
