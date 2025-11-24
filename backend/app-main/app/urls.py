@@ -58,6 +58,9 @@ urlpatterns = [
     # have i been pwned proxy api
     path('', include('hibp.urls')),
 
+    # hub.cert.dk proxy api
+    path('', include('hubcert.urls')),
+
     # active directory api
     path('', include('active_directory.urls')),
 

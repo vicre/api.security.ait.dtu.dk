@@ -189,6 +189,15 @@ except ValueError:
     HIBP_API_TIMEOUT = 15.0
 HIBP_API_USER_AGENT = os.getenv('HIBP_API_USER_AGENT', 'AIT-Security-API/1.0')
 
+# hub.cert.dk proxy configuration
+HUB_CERT_API_BASE_URL = os.getenv('HUB_CERT_API_BASE_URL', 'https://hub.cert.dk:8443')
+HUB_CERT_API_TOKEN = os.getenv('HUB_CERT_API_TOKEN')
+try:
+    HUB_CERT_API_TIMEOUT = float(os.getenv('HUB_CERT_API_TIMEOUT', '15'))
+except ValueError:
+    HUB_CERT_API_TIMEOUT = 15.0
+HUB_CERT_API_USER_AGENT = os.getenv('HUB_CERT_API_USER_AGENT', 'AIT-Security-API/1.0')
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
@@ -368,6 +377,7 @@ INSTALLED_APPS = [
     'graph',
     'defender',
     'hibp',
+    'hubcert',
 ]
 
 
