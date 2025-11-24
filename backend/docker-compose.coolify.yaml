@@ -57,7 +57,7 @@ services:
       - "traefik.http.routers.${TRAEFIK_ROUTER_NAME:-api_security}.tls.domains[0].main=${SERVICE_FQDN_WEB:-api.security.ait.dtu.dk}"
       - "traefik.http.routers.${TRAEFIK_ROUTER_NAME:-api_security}.tls.certresolver="
       - "traefik.http.services.${TRAEFIK_SERVICE_NAME:-api_security}.loadbalancer.server.port=8121"
-      - "traefik.docker.network=${TRAEFIK_NETWORK:-api-security-proxy}"
+      - "traefik.docker.network=${TRAEFIK_NETWORK:?TRAEFIK_NETWORK must be set}"
 
   db:
     image: postgres:16
@@ -94,9 +94,9 @@ volumes:
 networks:
   internal:
     driver: bridge
-    name: ${DOCKER_NETWORK:-api-security-internal}
+    name: ${DOCKER_NETWORK:?DOCKER_NETWORK must be set}
   proxy:
     driver: bridge
-    name: ${TRAEFIK_NETWORK:-api-security-proxy}
+    name: ${TRAEFIK_NETWORK:?TRAEFIK_NETWORK must be set}
     attachable: true
-    external: ${TRAEFIK_NETWORK_EXTERNAL:-false}
+    external: ${TRAEFIK_NETWORK_EXTERNAL:?TRAEFIK_NETWORK_EXTERNAL must be set}
