@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import ipaddress
 import re
 from typing import Iterable, List, Optional, Tuple, Type
 
@@ -187,17 +188,49 @@ class IPLimiterHandler(BaseLimiterHandler):
 
     content_type_model = "iplimiter"
 
+    @staticmethod
+    def _normalize_ip(value) -> Optional[str]:
+        try:
+            return str(ipaddress.IPv4Address(str(value).strip()))
+        except Exception:
+            return None
+
+    @classmethod
+    def _record_limiters(cls, request, limiters) -> None:
+        allowed = getattr(request, "_ip_limiter_addresses", None)
+        if not isinstance(allowed, set):
+            allowed = set()
+
+        for limiter in limiters:
+            ip_value = cls._normalize_ip(getattr(limiter, "ip_address", ""))
+            if ip_value:
+                allowed.add(ip_value)
+
+        if allowed:
+            request._ip_limiter_addresses = allowed
+
     @classmethod
     def authorize(cls, request, endpoint) -> bool:
         IPLimiter = apps.get_model("myview", "IPLimiter")
-        limiters = IPLimiter.objects.all()
-        user_groups = request.user.ad_group_members.all()
+        user = getattr(request, "user", None)
+        if not user or not getattr(user, "is_authenticated", False):
+            return False
 
-        for limiter in limiters:
-            if limiter.ad_groups.filter(id__in=user_groups).exists():
-                logger.debug("Authorised by IPLimiter for request %s", request.path)
-                return True
-        return False
+        user_group_ids = list(user.ad_group_members.values_list("id", flat=True))
+        if not user_group_ids:
+            return False
+
+        limiters = IPLimiter.objects.filter(ad_groups__in=user_group_ids).distinct()
+        if not limiters.exists():
+            return False
+
+        cls._record_limiters(request, limiters)
+        logger.debug(
+            "Authorised by IPLimiter for request %s with %s limiter(s)",
+            request.path,
+            limiters.count(),
+        )
+        return True
 
     @classmethod
     def is_visible(cls, limiter_type) -> bool:
@@ -210,10 +243,15 @@ class IPLimiterHandler(BaseLimiterHandler):
         limiters = IPLimiter.objects.filter(ad_groups__members=user).distinct()
         if not limiters.exists():
             return None
+        ip_addresses = [
+            cls._normalize_ip(ip)
+            for ip in limiters.values_list("ip_address", flat=True).distinct()
+        ]
+        filtered_ips = [ip for ip in ip_addresses if ip]
+        canonical_names = ", ".join(filtered_ips) if filtered_ips else None
         return {
             "name": limiter_type.name,
             "description": limiter_type.description,
             "model": limiter_type.content_type.model if limiter_type.content_type else None,
-            "canonical_names": None,
+            "canonical_names": canonical_names,
         }
-

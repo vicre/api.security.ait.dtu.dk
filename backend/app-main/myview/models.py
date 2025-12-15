@@ -1,6 +1,7 @@
 from django.db import models
 import logging
 import threading
+import ipaddress
 from django.contrib.auth.models import User
 from django.contrib.auth import get_user_model
 from django.conf import settings
@@ -375,7 +376,8 @@ class BugReportAttachment(BaseModel):
 
 
 class IPLimiter(BaseModel):
-    """This model represents a specific IP limiter."""
+    """Restricts IT Staff API access to specific IP addresses."""
+
     ip_address = models.CharField(max_length=15)
     description = models.TextField(blank=True, default='')
     ad_groups = models.ManyToManyField('ADGroupAssociation', related_name='ip_limiters', blank=True)
@@ -383,6 +385,27 @@ class IPLimiter(BaseModel):
     class Meta:
         verbose_name = "IP Limiter"
         verbose_name_plural = "IP Limiters"
+
+    def __str__(self):
+        return self.ip_address
+
+    @staticmethod
+    def _normalize_ip(ip_value):
+        try:
+            return str(ipaddress.IPv4Address(str(ip_value).strip()))
+        except Exception:
+            return None
+
+    def clean(self):
+        super().clean()
+        normalized_ip = self._normalize_ip(self.ip_address)
+        if not normalized_ip:
+            raise ValidationError({"ip_address": _("Enter a valid IPv4 address.")})
+        self.ip_address = normalized_ip
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
 
 class ADOrganizationalUnitLimiter(BaseModel):
     """This model represents an AD organizational unit limiter."""

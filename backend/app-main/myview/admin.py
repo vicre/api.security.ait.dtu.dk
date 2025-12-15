@@ -680,6 +680,36 @@ except ImportError:
 
 
 try:
+    from .models import IPLimiter
+
+    @admin.register(IPLimiter)
+    class IPLimiterAdmin(admin.ModelAdmin):
+        list_display = ("ip_address", "description", "member_count")
+        search_fields = ("ip_address", "description", "ad_groups__name")
+        filter_horizontal = ("ad_groups",)
+        list_per_page = 25
+        fieldsets = (
+            (None, {"fields": ("ip_address", "description")}),
+            (_("IT Staff API groups"), {"fields": ("ad_groups",)}),
+        )
+
+        def member_count(self, obj):
+            return sum(group.members.count() for group in obj.ad_groups.all())
+
+        member_count.short_description = _("Member Count")
+
+except ImportError:
+    print("IPLimiter model is not available for registration in the admin site.")
+    pass
+
+
+
+
+
+
+
+
+try:
     from .models import ADOrganizationalUnitLimiter
     from django.contrib import admin
     from django.contrib.admin.widgets import FilteredSelectMultiple

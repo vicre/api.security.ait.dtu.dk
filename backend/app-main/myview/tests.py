@@ -27,7 +27,7 @@ class LimiterTypeSyncTests(TestCase):
 
         ip_limiter = limiters.filter(name='IP Limiter').first()
         self.assertIsNotNone(ip_limiter)
-        self.assertEqual(ip_limiter.description, 'This model represents a specific IP limiter.')
+        self.assertEqual(ip_limiter.description, 'Restricts IT Staff API access to specific IP addresses.')
         self.assertEqual(ip_limiter.content_type.model, 'iplimiter')
 
         ou_limiter = limiters.filter(name='AD Organizational Unit Limiter').first()
