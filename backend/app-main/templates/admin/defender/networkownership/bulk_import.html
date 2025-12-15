@@ -1,0 +1,33 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% trans "Home" %}</a>
+    &rsaquo; <a href="{% url 'admin:app_list' 'defender' %}">{% trans "Defender" %}</a>
+    &rsaquo; <a href="{% url 'admin:defender_networkownership_changelist' %}">{% trans "Network ownerships" %}</a>
+    &rsaquo; {% trans "Bulk import networks" %}
+</div>
+{% endblock %}
+
+{% block content %}
+<h1>{% trans "Bulk import networks" %}</h1>
+<p class="help">
+    {% trans "Paste one IP or subnet per line to quickly assign ownership." %}
+    {% trans "All imported entries will share the selected owner and description." %}
+</p>
+
+<form method="post" novalidate>
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    <div class="module aligned">
+        <table>
+            {{ form.as_table }}
+        </table>
+    </div>
+    <div class="submit-row">
+        <input type="submit" value="{% trans 'Import networks' %}" class="default">
+        <a href="{% url 'admin:defender_networkownership_changelist' %}" class="button cancel-link">{% trans "Cancel" %}</a>
+    </div>
+</form>
+{% endblock %}
