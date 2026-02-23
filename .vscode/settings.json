@@ -2,7 +2,7 @@
 {
     "workbench.colorTheme": "Tokyo Night",
     // "workbench.colorTheme": "Tokyo Night Light",
-    "editor.hover.enabled": false,
+    "editor.hover.enabled": "off",
     "workbench.colorCustomizations": {
         "activityBar.background": "#372C18",
         "titleBar.activeBackground": "#4D3E22",
