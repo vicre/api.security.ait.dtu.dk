@@ -33,16 +33,12 @@ def bug_report_attachment_upload_to(instance, filename):
     report_identifier = instance.bug_report_id or "unassigned"
     return f"bug_reports/{report_identifier}/{timestamp}_{base_name}{extension}"
 
-
-
 class BaseModel(models.Model):
     datetime_created = models.DateTimeField(auto_now_add=True)
     datetime_modified = models.DateTimeField(auto_now=True)
 
     class Meta:
         abstract = True
-
-
 
 class UserActivityLog(BaseModel):
     class EventType(models.TextChoices):
@@ -173,10 +169,6 @@ class UserActivityLog(BaseModel):
         payload["event_type"] = cls.EventType.API_REQUEST
         return cls.objects.create(**payload)
 
-
-
-
-
 class BugReport(BaseModel):
     """Store bug reports submitted from the web UI."""
 
@@ -204,7 +196,6 @@ class BugReport(BaseModel):
         if self.page_path:
             return f"{base} on {self.page_path}"
         return base
-
 
 class MFAResetAttempt(BaseModel):
     class ResetType(models.TextChoices):
@@ -272,7 +263,6 @@ class MFAResetAttempt(BaseModel):
             reset_type=reset_type,
             details=details or "",
         )
-
 
 class MFAResetRecord(BaseModel):
     """High level audit log for successful MFA resets."""
@@ -353,7 +343,6 @@ class MFAResetRecord(BaseModel):
             client_label=client_label or "",
         )
 
-
 class BugReportAttachment(BaseModel):
     """Files attached to bug reports."""
 
@@ -372,8 +361,6 @@ class BugReportAttachment(BaseModel):
 
     def __str__(self):
         return self.original_name or Path(self.file.name).name
-
-
 
 class IPLimiter(BaseModel):
     """Restricts IT Staff API access to specific IP addresses."""
@@ -556,7 +543,7 @@ class ADOrganizationalUnitLimiter(BaseModel):
         return synced_limiters
 
 # This model is used to associate AD groups with Django users
-class ADGroupAssociation(BaseModel):
+class ADStaffSyncGroup(BaseModel):
     """
     This model represents an association between an AD group and a Django user.
     """
@@ -569,7 +556,7 @@ class ADGroupAssociation(BaseModel):
         return self.name or self.canonical_name
 
     class Meta:
-        verbose_name = "IT Staff API Permission"
+        verbose_name = "IT Staff API Permission (Django Data Model is ADGroupAssociation)"
         verbose_name_plural = "IT Staff API Permissions"
 
     @staticmethod
@@ -1313,6 +1300,7 @@ class ADGroupAssociation(BaseModel):
 
 
 
+
 class LimiterType(models.Model):
     """This model represents a type of limiter, associated only with the model type."""
     name = models.CharField(max_length=255, unique=True)
@@ -1330,9 +1318,6 @@ class LimiterType(models.Model):
             and (self.name or "").strip().lower() == NO_LIMIT_LIMITER_NAME.lower()
         )
     
-
-
-
 
 class Endpoint(BaseModel):
     path = models.CharField(max_length=255, unique=True)
@@ -1367,11 +1352,6 @@ class Endpoint(BaseModel):
             return True, access_granting_groups  # Return True and the groups that grant access
         else:
             return False, None  # No access granted
-
-
-
-
-
 
 class ChatThread(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='chat_threads')
@@ -1429,7 +1409,6 @@ class APIRequestLog(BaseModel):
     def __str__(self):
         status = self.status_code if self.status_code is not None else '—'
         return f"{self.method} {self.path} [{status}]"
-
 
 class UserLoginLog(BaseModel):
     """Tracks MSAL login events for auditing."""

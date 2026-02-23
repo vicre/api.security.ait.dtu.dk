@@ -4,13 +4,13 @@ from django.http import HttpRequest
 from django.contrib.admin.widgets import FilteredSelectMultiple
 from django.contrib.admin.helpers import ActionForm
 from django.db import models
-from myview.models import ADGroupAssociation
-from django.contrib.contenttypes.admin import GenericTabularInline
+from myview.models import ADStaffSyncGroup
 from django.contrib.contenttypes.models import ContentType
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
 from django.utils.html import format_html
 from django.utils.text import slugify
+from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 from django.shortcuts import redirect
 from django import forms
@@ -20,95 +20,82 @@ import importlib.util
 import io
 from contextlib import redirect_stdout, redirect_stderr
 from pathlib import Path
-try:
-    from .models import UserActivityLog
-
-except ImportError:
-    print("UserActivityLog model is not available for registration in the admin site.")
-    UserActivityLog = None
-
-
-
 from .limiter_handlers import limiter_registry
-
-logger = logging.getLogger(__name__)
-
+from .models import UserActivityLog
 
 
-if UserActivityLog is not None:
+@admin.register(UserActivityLog)
+class UserActivityLogAdmin(admin.ModelAdmin):
+    list_display = (
+        "datetime_created",
+        "event_type",
+        "display_user",
+        "username",
+        "was_successful",
+        "request_method",
+        "request_path",
+        "status_code",
+    )
+    list_filter = (
+        "event_type",
+        "was_successful",
+        "request_method",
+        "status_code",
+        ("datetime_created", admin.DateFieldListFilter),
+    )
+    search_fields = (
+        "username",
+        "user__username",
+        "request_path",
+        "message",
+        "extra",
+    )
+    readonly_fields = (
+        "datetime_created",
+        "datetime_modified",
+        "user",
+        "username",
+        "event_type",
+        "was_successful",
+        "request_method",
+        "request_path",
+        "ip_address",
+        "status_code",
+        "message",
+        "extra",
+    )
+    ordering = ("-datetime_created",)
+    date_hierarchy = "datetime_created"
 
-    @admin.register(UserActivityLog)
-    class UserActivityLogAdmin(admin.ModelAdmin):
-        list_display = (
-            "datetime_created",
-            "event_type",
-            "display_user",
-            "username",
-            "was_successful",
-            "request_method",
-            "request_path",
-            "status_code",
-        )
-        list_filter = (
-            "event_type",
-            "was_successful",
-            "request_method",
-            "status_code",
-            ("datetime_created", admin.DateFieldListFilter),
-        )
-        search_fields = (
-            "username",
-            "user__username",
-            "request_path",
-            "message",
-            "extra",
-        )
-        readonly_fields = (
-            "datetime_created",
-            "datetime_modified",
-            "user",
-            "username",
-            "event_type",
-            "was_successful",
-            "request_method",
-            "request_path",
-            "ip_address",
-            "status_code",
-            "message",
-            "extra",
-        )
-        ordering = ("-datetime_created",)
-        date_hierarchy = "datetime_created"
+    fieldsets = (
+        (None, {"fields": ("datetime_created", "datetime_modified", "event_type", "was_successful", "message")}),
+        (_("User"), {"fields": ("user", "username")}),
+        (
+            _("Request"),
+            {
+                "fields": (
+                    "request_method",
+                    "request_path",
+                    "status_code",
+                    "ip_address",
+                    "extra",
+                )
+            },
+        ),
+    )
 
-        fieldsets = (
-            (None, {"fields": ("datetime_created", "datetime_modified", "event_type", "was_successful", "message")}),
-            (_("User"), {"fields": ("user", "username")}),
-            (
-                _("Request"),
-                {
-                    "fields": (
-                        "request_method",
-                        "request_path",
-                        "status_code",
-                        "ip_address",
-                        "extra",
-                    )
-                },
-            ),
-        )
+    def has_add_permission(self, request):
+        return False
 
-        def has_add_permission(self, request):
-            return False
+    def has_change_permission(self, request, obj=None):
+        return False
 
-        def has_change_permission(self, request, obj=None):
-            return False
+    def display_user(self, obj):
+        if obj.user_id and obj.user:
+            return obj.user.get_username()
+        return "—"
 
-        def display_user(self, obj):
-            if obj.user_id and obj.user:
-                return obj.user.get_username()
-            return "—"
-
-        display_user.short_description = _("User")
+    display_user.short_description = _("User")
 
 
 try:
@@ -169,14 +156,9 @@ except ImportError:
     pass
 
 
-# Attempt to import the ADGroup model
-try:
-    from django.contrib import admin
-    from django.contrib import messages
-    from .models import ADGroupAssociation
-    from django.conf import settings
-    from django.core.exceptions import ValidationError
 
+    # Todo: All these AD groups and members should be synched with Django. 
+    # This is to keep track on who has access.
     IT_STAFF_API_BASE_DN = getattr(
         settings,
         "IT_STAFF_API_GROUP_BASE_DN",
@@ -185,20 +167,18 @@ try:
 
     def sync_ad_group_members(modeladmin, request, queryset):
         for obj in queryset:
-            ADGroupAssociation.sync_ad_group_members(obj)
+            ADStaffSyncGroup.sync_ad_group_members(obj)
         modeladmin.message_user(request, "Selected AD group members synced successfully.", messages.SUCCESS)
 
         sync_ad_group_members.short_description = "Sync selected AD group members"
 
-    @admin.register(ADGroupAssociation)
-    class ADGroupAssociationAdmin(admin.ModelAdmin):
-        list_display = ('name', 'canonical_name', 'distinguished_name', 'member_count', 'member_summary')  # Fields to display in the admin list view
-        search_fields = ('name', 'canonical_name')
-        filter_horizontal = ('members',)  # Provides a more user-friendly widget for ManyToMany relations
+    @admin.register(ADStaffSyncGroup)
+    class ADStaffSyncGroupAdmin(admin.ModelAdmin):
+        list_display = ('name', 'canonical_name', 'member_count')  # Fields to display in the admin list view
         readonly_fields = ('name', 'canonical_name', 'distinguished_name', 'member_count', 'member_summary')  # Fields that should be read-only in the admin
         list_per_page = 40
         actions = [sync_ad_group_members]
-        change_list_template = "admin/myview/adgroupassociation/change_list.html"
+        change_list_template = "admin/myview/ADStaffSyncGroup/change_list.html"
         it_staff_base_dn = IT_STAFF_API_BASE_DN
 
 
@@ -207,7 +187,7 @@ try:
             return qs.prefetch_related('members')
 
         def has_delete_permission(self, request, obj=None):
-            return True
+            return False
         
         def has_add_permission(self, request, obj=None):
             return False
@@ -244,7 +224,7 @@ try:
                 path(
                     'sync/',
                     self.admin_site.admin_view(self.sync_groups),
-                    name='myview_adgroupassociation_sync',
+                    name='myview_ADStaffSyncGroup_sync',
                 ),
             ]
             return custom + urls
@@ -255,7 +235,7 @@ try:
 
             extra_context = extra_context or {}
             try:
-                extra_context['sync_url'] = reverse(f"{self.admin_site.name}:myview_adgroupassociation_sync")
+                extra_context['sync_url'] = reverse(f"{self.admin_site.name}:myview_ADStaffSyncGroup_sync")
             except Exception:
                 extra_context['sync_url'] = None
             return super().changelist_view(request, extra_context=extra_context)
@@ -264,9 +244,8 @@ try:
             from django.utils.translation import gettext as _
 
             try:
-                synced_groups, errors, duration = ADGroupAssociation.sync_it_staff_groups_from_settings()
+                synced_groups, errors, duration = ADStaffSyncGroup.sync_it_staff_groups_from_settings()
             except Exception as exc:  # noqa: BLE001
-                logger.exception("Failed to sync IT Staff API groups.")
                 if show_message:
                     self.message_user(
                         request,
@@ -304,23 +283,19 @@ try:
 
         def sync_groups(self, request):
             self._sync_it_staff_groups(request, show_message=True)
-            return redirect(reverse(f"{self.admin_site.name}:myview_adgroupassociation_changelist"))
+            return redirect(reverse(f"{self.admin_site.name}:myview_ADStaffSyncGroup_changelist"))
 
         @staticmethod
         def _sync_group_members(group, canonical_name):
             try:
                 group.sync_ad_group_members()
             except Exception as exc:  # noqa: BLE001
-                logger.exception("Failed to sync members for %s", canonical_name)
                 return False, str(exc)
             return True, None
 
 except ImportError:
     print("ADGroup model is not available for registration in the admin site.")
     pass
-
-
-
 
 try:
     from .constants import NO_LIMIT_LIMITER_DESCRIPTION, NO_LIMIT_LIMITER_NAME
@@ -401,7 +376,7 @@ try:
             help_text="Select the limiter type to apply to selected endpoints.",
         )
         ad_groups = forms.ModelMultipleChoiceField(
-            queryset=ADGroupAssociation.objects.none(),
+            queryset=ADStaffSyncGroup.objects.none(),
             required=False,
             label="AD groups",
             widget=FilteredSelectMultiple("AD groups", is_stacked=False),
@@ -417,7 +392,7 @@ try:
                     limiter_choices.append((str(obj.pk), obj.name))
             limiter_choices.append(("__none__", "<None> (clear limiter)"))
             self.fields['limiter_type'].choices = limiter_choices
-            self.fields['ad_groups'].queryset = ADGroupAssociation.objects.all()
+            self.fields['ad_groups'].queryset = ADStaffSyncGroup.objects.all()
 
     @admin.register(Endpoint)
     class EndpointAdmin(admin.ModelAdmin):
@@ -471,7 +446,7 @@ try:
                     )
 
             if ad_group_ids:
-                groups = list(ADGroupAssociation.objects.filter(pk__in=ad_group_ids))
+                groups = list(ADStaffSyncGroup.objects.filter(pk__in=ad_group_ids))
                 if groups:
                     endpoint_count = queryset.count()
                     for endpoint in queryset:
@@ -516,7 +491,6 @@ try:
             try:
                 updateEndpoints(using=self.model._default_manager.db, logger=logger)
             except Exception as exc:
-                logger.exception('Endpoint refresh via admin failed')
                 self.message_user(
                     request,
                     _('Failed to refresh endpoints: %(error)s') % {'error': exc},
@@ -538,13 +512,13 @@ try:
                 
                 # get or create the group
                 try:
-                    ad_group_assoc, created = ADGroupAssociation.objects.get_or_create(
+                    ad_group_assoc, created = ADStaffSyncGroup.objects.get_or_create(
                         canonical_name=group.canonical_name,
                         distinguished_name=group.distinguished_name,
                     )
                     print(created)
                 except Exception as e:
-                    print(f"Error creating ADGroupAssociation: {e}")
+                    print(f"Error creating ADStaffSyncGroup: {e}")
                 # print ad_group_assoc creted true or false
                 
                 # add the group to the endpoint
@@ -555,7 +529,7 @@ try:
 
         def formfield_for_manytomany(self, db_field, request, **kwargs):
             if db_field.name == "ad_groups":
-                return self._custom_field_logic(db_field, request, ADGroupAssociation, **kwargs)
+                return self._custom_field_logic(db_field, request, ADStaffSyncGroup, **kwargs)
             # elif db_field.name == "ad_organizational_units":
             #     return self._custom_field_logic(db_field, request, ADOrganizationalUnitAssociation, **kwargs)
             return super().formfield_for_manytomany(db_field, request, **kwargs)
@@ -565,7 +539,7 @@ try:
             associated_items = model_class.objects.filter(endpoints__isnull=False).distinct()
             
             for item in selected_items:
-                ad_group_assoc, created = ADGroupAssociation.objects.get_or_create(
+                ad_group_assoc, created = ADStaffSyncGroup.objects.get_or_create(
                     cn=item['cn'][0],
                     canonical_name=item['canonicalName'][0],
                     defaults={'distinguished_name': item['distinguishedName'][0]}
@@ -605,7 +579,7 @@ try:
                 )
                 return None
 
-            groups = ADGroupAssociation.objects.filter(pk__in=group_ids)
+            groups = ADStaffSyncGroup.objects.filter(pk__in=group_ids)
             if not groups.exists():
                 self.message_user(request, "No valid AD groups were selected.", level=messages.ERROR)
                 return None
@@ -760,7 +734,7 @@ try:
                     continue
 
                 # Ensure the base OU exists as a limiter
-                base_dn = ADGroupAssociation._canonical_to_distinguished_name(base)
+                base_dn = ADStaffSyncGroup._canonical_to_distinguished_name(base)
                 if base_dn:
                     ADOrganizationalUnitLimiter.objects.update_or_create(
                         canonical_name=base,
@@ -768,7 +742,7 @@ try:
                     )
 
                 for child in children:
-                    dn = ADGroupAssociation._canonical_to_distinguished_name(child)
+                    dn = ADStaffSyncGroup._canonical_to_distinguished_name(child)
                     if not dn:
                         errors.append(f"Failed to derive DN for {child}")
                         continue
