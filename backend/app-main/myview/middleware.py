@@ -403,8 +403,6 @@ class AccessControlMiddleware(MiddlewareMixin):
         action = "init"
         response = None
 
-        # Periodically refresh AD group definitions when configured.
-        self._maybe_trigger_group_sync(request, bool(token))
 
         if normalised_path == "/favicon.ico/":
             action = "favicon"
@@ -506,27 +504,4 @@ class AccessControlMiddleware(MiddlewareMixin):
         self._log_request(request, response, action, duration_ms, token)
         return response
 
-    def _maybe_trigger_group_sync(self, request, token_present: bool) -> None:
-        if not getattr(settings, "AD_GROUP_AUTO_SYNC_ENABLED", False):
-            return
 
-        sync_started = time.monotonic()
-        block_sync = request.user.is_authenticated or token_present
-        sync_triggered = False
-
-        try:
-            sync_triggered = ADStaffSyncGroup.ensure_groups_synced_cached(block=block_sync)
-        except Exception:  # pragma: no cover - defensive logging
-            logger.warning("AccessControl AD group sync failed", exc_info=True)
-            return
-
-        if sync_triggered:
-            logger.info("ensure_groups_synced_cached triggered path=%s block=%s", request.path, block_sync)
-
-        logger.debug(
-            "AccessControl AD group sync %s in %.1fms",
-            "ran inline" if block_sync and sync_triggered else (
-                "scheduled async" if (not block_sync and sync_triggered) else "skipped (fresh cache)"
-            ),
-            (time.monotonic() - sync_started) * 1000,
-        )

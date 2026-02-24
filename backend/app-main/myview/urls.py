@@ -104,3 +104,5 @@ try:
 except ImportError:
    print("AjaxView model is not available for registration in the admin site.")
    pass
+
+
