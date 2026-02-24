@@ -42,7 +42,7 @@ from .forms import (
 )
 from .limiter_handlers import limiter_registry
 from .models import (
-    ADStaffSyncGroup,
+    ADStaffSyncGroupup,
     ADOrganizationalUnitLimiter,
     BugReport,
     BugReportAttachment,
@@ -884,7 +884,7 @@ class MFAResetPageView(BaseView):
             return ""
 
         try:
-            canonical = ADStaffSyncGroup._dn_to_canonical(distinguished_name)
+            canonical = ADStaffSyncGroupup._dn_to_canonical(distinguished_name)
         except Exception:  # pragma: no cover - defensive
             logger.debug(
                 "Unable to convert distinguished name %s to canonical form",

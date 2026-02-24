@@ -17,16 +17,14 @@ from django.urls import reverse
 from django.views.decorators.cache import cache_control
 from django.views.decorators.http import require_GET
 from msal import ConfidentialClientApplication
-from myview.models import ADStaffSyncGroup, UserLoginLog
+from myview.models import ADStaffSyncGroupup, UserLoginLog
 
 logger = logging.getLogger(__name__)
-
 
 def _build_callback_absolute_uri(request) -> str:
     """Return the callback URL using the current request's scheme/host."""
 
     return request.build_absolute_uri(reverse('msal_callback'))
-
 
 def _resolve_redirect_uri(request) -> str:
     """Determine which redirect URI to hand to Azure AD for this request."""
@@ -72,14 +70,12 @@ def _resolve_redirect_uri(request) -> str:
     normalised = configured_parsed._replace(path=path)
     return urlunparse(normalised)
 
-
 def _get_client_ip(request):
     """Best-effort extraction of the client IP address."""
     x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
     if x_forwarded_for:
         return x_forwarded_for.split(',')[0].strip()
     return request.META.get('REMOTE_ADDR')
-
 
 def msal_callback(request):
     # The state should be passed to the authorization request and validated in the response.
@@ -262,7 +258,7 @@ def msal_callback(request):
             user.backend = 'django.contrib.auth.backends.ModelBackend'
 
             # Sync user AD groups (force on login to ensure fresh membership)
-            ADStaffSyncGroup.sync_user_ad_groups_cached(
+            ADStaffSyncGroupup.sync_user_ad_groups_cached(
                 username=user.username,
                 force=True,
             )
@@ -270,14 +266,14 @@ def msal_callback(request):
             required_groups = getattr(settings, 'IT_STAFF_API_GROUP_CANONICAL_NAMES', ())
             has_required_group = True
             if required_groups:
-                has_required_group = ADStaffSyncGroup.objects.filter(
+                has_required_group = ADStaffSyncGroupup.objects.filter(
                     canonical_name__in=required_groups,
                     members=user,
                 ).exists()
 
             if not has_required_group:
                 configured_groups = list(
-                    ADStaffSyncGroup.objects.filter(
+                    ADStaffSyncGroupup.objects.filter(
                         canonical_name__in=required_groups
                     ).values_list('name', flat=True)
                 )
@@ -372,7 +368,6 @@ def msal_callback(request):
 
         return HttpResponse("Error: failed to retrieve access token.", status=400)
 
-
 @require_GET
 @cache_control(no_cache=True, must_revalidate=True, no_store=True)
 def health_check(request):
@@ -382,7 +377,6 @@ def health_check(request):
     response["Pragma"] = "no-cache"
     response["Expires"] = "0"
     return response
-
 
 @login_required
 def msal_director(request):      
@@ -396,49 +390,8 @@ def msal_director(request):
         HttpResponseRedirect('/myview/only-allowed-for-it-staff/')
 
     except ImportError:
-        print("ADStaffSyncGroup model is not available for registration in the admin site.")
+        print("ADStaffSyncGroupup model is not available for registration in the admin site.")
         HttpResponseRedirect('/myview/only-allowed-for-it-staff/') 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 def msal_login(request):
     start_time = time.monotonic()
@@ -475,8 +428,6 @@ def msal_login(request):
 
     return redirect(auth_url)
 
-
-
 def msal_logout(request):
     
     logout(request)
@@ -490,10 +441,3 @@ def msal_logout(request):
     response = redirect(logout_url)
     response.delete_cookie('csrftoken')
     return response
-
-
-
-
-
-
-

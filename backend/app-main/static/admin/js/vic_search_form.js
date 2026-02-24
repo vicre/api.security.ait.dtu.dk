@@ -13,7 +13,7 @@ class VicSearchFormApp {
                     setup: this.setupSearchBarForUnitLimiter.bind(this)
                 },
                 searchBarGroupAssociation: {
-                    path: "/admin/myview/ADStaffSyncGroup/",
+                    path: "/admin/myview/ADStaffSyncGroupup/",
                     setup: this.setupSearchBarForGroupAssociation.bind(this)
                 }
             };

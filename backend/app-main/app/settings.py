@@ -312,7 +312,6 @@ if allowed_hosts_env:
 else:
     ALLOWED_HOSTS = default_allowed_hosts
 
-
 cors_origins_env = os.getenv('DJANGO_CORS_ALLOWED_ORIGINS')
 if cors_origins_env:
     CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins_env.split(',') if origin.strip()]
@@ -326,7 +325,6 @@ else:
     ]
 
 CORS_ALLOW_CREDENTIALS = False
-
 
 default_csrf_domain = os.getenv('DJANGO_CSRF_COOKIE_DOMAIN')
 if default_csrf_domain is not None:
@@ -382,7 +380,6 @@ INSTALLED_APPS = [
     'hubcert',
 ]
 
-
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
@@ -395,8 +392,6 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'myview.middleware.AccessControlMiddleware',
 ]
-
-
 
 ROOT_URLCONF = 'app.urls'
 
@@ -418,8 +413,6 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'app.wsgi.application'
-
-
 
 POSTGRES_REQUIRED_ENV_VARS = (
     'POSTGRES_DB',
