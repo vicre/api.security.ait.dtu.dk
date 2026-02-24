@@ -52,29 +52,8 @@ urlpatterns = [
     # graph api
     path('', include('graph.urls')),
 
-    # playbook api 
-    path('', include('playbook.urls')),
-
-    # have i been pwned proxy api
-    path('', include('hibp.urls')),
-
-    # hub.cert.dk proxy api
-    path('', include('hubcert.urls')),
-
     # active directory api
     path('', include('active_directory.urls')),
-
-    # defender api
-    # path('', include('defender.urls')),
-
-    # openAPI documentation api -  you can just use /myview/swagger/?format=openapi instead
-    # path('', include('openapi.urls')),
-
-
-
-    # path('admin/app/ajax/', AjaxView.as_view(), name='admin-app-ajax'),
-
-
 
 ]
 

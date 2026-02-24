@@ -12,8 +12,6 @@ from ldap3 import ALL_ATTRIBUTES
 from rest_framework import status
 from rest_framework.response import Response
 
-from utils.api import SecuredAPIView
-from utils.authentication import AzureAdTokenAuthentication
 from rest_framework.authentication import TokenAuthentication
 
 from .services import (
@@ -22,10 +20,10 @@ from .services import (
 )
 
 
-class ActiveDirectoryQueryAssistantView(SecuredAPIView):
+class ActiveDirectoryQueryAssistantView():
     """Assist in building Active Directory queries from natural language."""
 
-    authentication_classes = [AzureAdTokenAuthentication, TokenAuthentication]
+    authentication_classes = [TokenAuthentication]
 
     header_parameter = openapi.Parameter(
         "Authorization",
@@ -79,7 +77,7 @@ curl --location --request POST 'http://api.security.ait.dtu.dk/active-directory/
         return Response(response, status=status.HTTP_200_OK)
 
 
-class ActiveDirectoryQueryView(SecuredAPIView):
+class ActiveDirectoryQueryView():
     """Perform an Active Directory LDAP query."""
 
     base_dn_param = openapi.Parameter(

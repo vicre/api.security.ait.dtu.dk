@@ -169,101 +169,6 @@ class UserActivityLog(BaseModel):
         payload["event_type"] = cls.EventType.API_REQUEST
         return cls.objects.create(**payload)
 
-class BugReport(BaseModel):
-    """Store bug reports submitted from the web UI."""
-
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        related_name="bug_reports",
-        null=True,
-        blank=True,
-    )
-    session_key = models.CharField(max_length=40, blank=True)
-    page_url = models.URLField(max_length=2048, blank=True)
-    page_path = models.CharField(max_length=512, blank=True)
-    site_domain = models.CharField(max_length=255, blank=True)
-    user_agent = models.TextField(blank=True)
-    description = models.TextField()
-
-    class Meta:
-        ordering = ["-datetime_created"]
-        verbose_name = "Bug report"
-        verbose_name_plural = "Bug reports"
-
-    def __str__(self):
-        base = f"Bug report #{self.pk}" if self.pk else "Bug report"
-        if self.page_path:
-            return f"{base} on {self.page_path}"
-        return base
-
-class MFAResetAttempt(BaseModel):
-    class ResetType(models.TextChoices):
-        BULK = "bulk", _("Bulk reset")
-        INDIVIDUAL = "individual", _("Individual reset")
-
-    performed_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        related_name="mfa_reset_attempts",
-        null=True,
-        blank=True,
-    )
-    performed_by_username = models.CharField(max_length=150, blank=True)
-    target_user_principal_name = models.EmailField(max_length=255)
-    method_id = models.CharField(max_length=255, blank=True)
-    method_type = models.CharField(max_length=255, blank=True)
-    was_successful = models.BooleanField(default=False)
-    reset_type = models.CharField(max_length=32, choices=ResetType.choices)
-    details = models.TextField(blank=True)
-
-    class Meta:
-        ordering = ["-datetime_created"]
-        verbose_name = "MFA reset attempt"
-        verbose_name_plural = "MFA reset attempts"
-
-    def __str__(self):
-        actor = self.performed_by_username or (
-            self.performed_by.get_username()
-            if getattr(self.performed_by, "is_authenticated", False)
-            else "unknown"
-        )
-        status = _("successful") if self.was_successful else _("unsuccessful")
-        return (
-            f"{self.get_reset_type_display()} by {actor} for {self.target_user_principal_name}"
-            f" ({status})"
-        )
-
-    @classmethod
-    def log_attempt(
-        cls,
-        *,
-        performed_by,
-        target_user_principal_name,
-        reset_type,
-        was_successful,
-        method_id="",
-        method_type="",
-        details="",
-    ):
-        user = performed_by if getattr(performed_by, "is_authenticated", False) else None
-        username = ""
-        if getattr(performed_by, "is_authenticated", False):
-            username = performed_by.get_username()
-        elif performed_by:
-            username = str(performed_by)
-
-        return cls.objects.create(
-            performed_by=user,
-            performed_by_username=username,
-            target_user_principal_name=target_user_principal_name,
-            method_id=method_id or "",
-            method_type=method_type or "",
-            was_successful=was_successful,
-            reset_type=reset_type,
-            details=details or "",
-        )
-
 class MFAResetRecord(BaseModel):
     """High level audit log for successful MFA resets."""
 
@@ -626,7 +531,6 @@ class ADStaffSyncGroup(BaseModel):
             except Exception:
                 logger.exception("Unexpected error while ensuring Django user for %s", user_principal_name)
 
-
 class LimiterType(models.Model):
     """This model represents a type of limiter, associated only with the model type."""
     name = models.CharField(max_length=255, unique=True)
@@ -677,23 +581,6 @@ class Endpoint(BaseModel):
             return True, access_granting_groups  # Return True and the groups that grant access
         else:
             return False, None  # No access granted
-
-class ChatThread(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='chat_threads')
-    title = models.CharField(max_length=255, default='New Chat')
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return self.title
-
-class ChatMessage(models.Model):
-    thread = models.ForeignKey(ChatThread, on_delete=models.CASCADE, related_name='messages')
-    role = models.CharField(max_length=20)  # 'user' or 'assistant'
-    content = models.TextField()
-    timestamp = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"{self.role}: {self.content[:50]}"
 
 class APIRequestLog(BaseModel):
     """Records metadata about inbound API calls for auditing in the admin."""
