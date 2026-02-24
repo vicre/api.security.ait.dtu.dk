@@ -39,7 +39,6 @@ DJANGO_SECRET=...preview-secret...
 POSTGRES_PASSWORD=...preview-password...
 POSTGRES_DB=app_preview
 POSTGRES_USER=app_preview
-CACHE_URL=redis://redis:6379/1
 ```
 
 > The shared network names allow both stacks to communicate with the Traefik proxy, while distinct router/service names and hostnames keep routing separate.

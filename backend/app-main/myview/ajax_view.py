@@ -1,7 +1,7 @@
 
 from .views import BaseView
 from django.http import JsonResponse
-from .models import ADGroupAssociation
+from .models import ADStaffSyncGroup
 from django.contrib.auth.models import User
 from active_directory.scripts.active_directory_query import active_directory_query
 from ldap3 import ALL_ATTRIBUTES
@@ -9,7 +9,6 @@ import json
 import logging
 from django.conf import settings  # Added import for settings
 from zoneinfo import ZoneInfo
-
 
 # Get the logger for your app
 logger = logging.getLogger(__name__)
@@ -102,9 +101,6 @@ class AjaxView(BaseView):
         threads = ChatThread.objects.filter(user=user).order_by('-created_at')
         thread_list = [{'id': t.id, 'title': t.title} for t in threads]
         return JsonResponse({'threads': thread_list})
-
-
-
 
     def send_message(self, request):
         user = request.user
@@ -412,16 +408,14 @@ class AjaxView(BaseView):
                     if len(organizational_unit) != 1:
                         raise ValueError(f"No match found for the distinguished name:\n{distinguished_name}")
 
-                    # Get or create a new ADOrganizationalUnitLimiter
-                    from .models import ADGroupAssociation
-                    ad_group_assoc, created = ADGroupAssociation.objects.get_or_create(
+                    ad_group_assoc, created = ADStaffSyncGroup.objects.get_or_create(
                         canonical_name=organizational_unit[0]['canonicalName'][0],
                         distinguished_name=organizational_unit[0]['distinguishedName'][0]
                     )
 
 
                     # sync the created groups adusers members
-                    ADGroupAssociation.sync_ad_group_members(ad_group_assoc)
+                    ADStaffSyncGroup.sync_ad_group_members(ad_group_assoc)
 
                     if created:
                         return JsonResponse({'success': 'New organizational unit created'}, status=201)
@@ -468,16 +462,9 @@ class AjaxView(BaseView):
                         return JsonResponse({'error': 'Invalid direction'}, status=400)
                 except Exception as e:
                     return JsonResponse({'error': str(e)}, status=500)
-
-
-
-
                 
             else:
                 return JsonResponse({'error': 'Invalid AJAX action'}, status=400)
-
-
-
 
         except Exception as e:
             logger.error(f"Error processing action '{action}': {e}")

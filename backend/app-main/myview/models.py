@@ -542,7 +542,6 @@ class ADOrganizationalUnitLimiter(BaseModel):
 
         return synced_limiters
 
-# This model is used to associate AD groups with Django users
 class ADStaffSyncGroup(BaseModel):
     """
     This model represents an association between an AD group and a Django user.
@@ -1298,9 +1297,6 @@ class ADStaffSyncGroup(BaseModel):
         self.added_manually_by = admin_user
         self.save()
 
-
-
-
 class LimiterType(models.Model):
     """This model represents a type of limiter, associated only with the model type."""
     name = models.CharField(max_length=255, unique=True)
@@ -1317,7 +1313,6 @@ class LimiterType(models.Model):
             self.content_type_id is None
             and (self.name or "").strip().lower() == NO_LIMIT_LIMITER_NAME.lower()
         )
-    
 
 class Endpoint(BaseModel):
     path = models.CharField(max_length=255, unique=True)
@@ -1369,7 +1364,6 @@ class ChatMessage(models.Model):
 
     def __str__(self):
         return f"{self.role}: {self.content[:50]}"
-
 
 class APIRequestLog(BaseModel):
     """Records metadata about inbound API calls for auditing in the admin."""
@@ -1441,3 +1435,4 @@ class UserLoginLog(BaseModel):
     def __str__(self):
         username = self.user_principal_name or getattr(self.user, 'username', 'unknown')
         return f"{username} via {self.auth_method} at {self.datetime_created:%Y-%m-%d %H:%M:%S}"
+

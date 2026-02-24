@@ -217,6 +217,8 @@ DEBUG = _as_bool(os.getenv("DJANGO_DEBUG"), False)
 # CAS_VERSION = '2'
 # CAS_REDIRECT_URL = '/login-redirector/'
 
+LOGIN_URL='/login/'
+
 _service_url_web = os.getenv('SERVICE_URL_WEB', 'http://localhost:8121').rstrip('/')
 _redirect_uri_default = f"{_service_url_web}/auth/callback"
 
@@ -418,62 +420,6 @@ TEMPLATES = [
 WSGI_APPLICATION = 'app.wsgi.application'
 
 
-# Caches
-CACHE_URL = os.getenv('CACHE_URL')
-REDIS_URL = os.getenv('REDIS_URL')
-
-_configured_cache_location = CACHE_URL or REDIS_URL
-_normalized_cache_location: str | None = None
-
-if _configured_cache_location:
-    raw_location = _configured_cache_location.strip()
-    if raw_location:
-        if "://" not in raw_location and not raw_location.startswith("unix:"):
-            raw_location = f"redis://{raw_location}"
-
-        parsed = urlparse(raw_location)
-        fallback_reason: str | None = None
-
-        if parsed.scheme in {"redis", "rediss"}:
-            if not parsed.hostname:
-                fallback_reason = "Redis cache URL is missing a hostname"
-            else:
-                try:
-                    socket.getaddrinfo(parsed.hostname, parsed.port or 6379)
-                except OSError as exc:
-                    fallback_reason = (
-                        f"Redis cache host '{parsed.hostname}' cannot be resolved ({exc})"
-                    )
-        elif parsed.scheme == "unix":
-            fallback_reason = None
-
-        if fallback_reason:
-            warnings.warn(
-                f"{fallback_reason}. Falling back to Django's local memory cache.",
-                stacklevel=2,
-            )
-        else:
-            _normalized_cache_location = raw_location
-
-if _normalized_cache_location:
-    CACHES = {
-        'default': {
-            'BACKEND': 'django_redis.cache.RedisCache',
-            'LOCATION': _normalized_cache_location,
-            'OPTIONS': {
-                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-                'IGNORE_EXCEPTIONS': True,
-            },
-        }
-    }
-else:
-    CACHES = {
-        'default': {
-            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-            'LOCATION': 'myview-locmem-cache',
-        }
-    }
-
 
 POSTGRES_REQUIRED_ENV_VARS = (
     'POSTGRES_DB',
@@ -637,14 +583,8 @@ SWAGGER_SETTINGS = {
 }
 
 
-LOGIN_URL='/login/'
 
-_git_metadata_env = os.getenv("DJANGO_GIT_METADATA_FILE")
 
-if _git_metadata_env:
-    GIT_METADATA_FILE = Path(_git_metadata_env)
-else:
-    GIT_METADATA_FILE = PROJECT_ROOT / "git-metadata.json"
 
 LOG_DIR = PROJECT_ROOT / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)

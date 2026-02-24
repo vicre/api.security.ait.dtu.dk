@@ -241,7 +241,6 @@ if DEV_HOSTNAME:
     os.environ.setdefault("SERVICE_URL_WEB", f"https://{DEV_HOSTNAME}")
 os.environ.setdefault("DJANGO_STATIC_ROOT", str(DATA_DIR / "static"))
 os.environ.setdefault("DJANGO_MEDIA_ROOT", str(DATA_DIR / "media"))
-os.environ.setdefault("CACHE_URL", "redis://redis:6379/0")
 # Try to ensure the dev hostname resolves locally without manual tweaks.
 _ensure_dev_hostname_in_hosts(DEV_HOSTNAME)
 

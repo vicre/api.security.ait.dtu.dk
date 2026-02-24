@@ -12,15 +12,12 @@ from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import redirect
 from django.urls import reverse
-from django.utils.decorators import method_decorator
-from django.views import View
 from django.views.decorators.cache import cache_control
 from django.views.decorators.http import require_GET
 from msal import ConfidentialClientApplication
-
-from myview.models import ADGroupAssociation, UserLoginLog
+from myview.models import ADStaffSyncGroup, UserLoginLog
 
 logger = logging.getLogger(__name__)
 
@@ -82,47 +79,6 @@ def _get_client_ip(request):
     if x_forwarded_for:
         return x_forwarded_for.split(',')[0].strip()
     return request.META.get('REMOTE_ADDR')
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 def msal_callback(request):
@@ -306,7 +262,7 @@ def msal_callback(request):
             user.backend = 'django.contrib.auth.backends.ModelBackend'
 
             # Sync user AD groups (force on login to ensure fresh membership)
-            ADGroupAssociation.sync_user_ad_groups_cached(
+            ADStaffSyncGroup.sync_user_ad_groups_cached(
                 username=user.username,
                 force=True,
             )
@@ -314,14 +270,14 @@ def msal_callback(request):
             required_groups = getattr(settings, 'IT_STAFF_API_GROUP_CANONICAL_NAMES', ())
             has_required_group = True
             if required_groups:
-                has_required_group = ADGroupAssociation.objects.filter(
+                has_required_group = ADStaffSyncGroup.objects.filter(
                     canonical_name__in=required_groups,
                     members=user,
                 ).exists()
 
             if not has_required_group:
                 configured_groups = list(
-                    ADGroupAssociation.objects.filter(
+                    ADStaffSyncGroup.objects.filter(
                         canonical_name__in=required_groups
                     ).values_list('name', flat=True)
                 )
@@ -426,90 +382,6 @@ def health_check(request):
     response["Pragma"] = "no-cache"
     response["Expires"] = "0"
     return response
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 @login_required
@@ -524,7 +396,7 @@ def msal_director(request):
         HttpResponseRedirect('/myview/only-allowed-for-it-staff/')
 
     except ImportError:
-        print("ADGroupAssociation model is not available for registration in the admin site.")
+        print("ADStaffSyncGroup model is not available for registration in the admin site.")
         HttpResponseRedirect('/myview/only-allowed-for-it-staff/') 
 
 
@@ -602,59 +474,6 @@ def msal_login(request):
         raise
 
     return redirect(auth_url)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
