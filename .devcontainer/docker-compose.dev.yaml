@@ -30,7 +30,6 @@ services:
       APP_ENV_FILE: /workspace/backend/.env
     volumes:
       - ../:/workspace
-      - ../backend/shared-project-data:/mnt/shared-project-data
       - static_data:/data/static
       - media_data:/data/media
     networks:
