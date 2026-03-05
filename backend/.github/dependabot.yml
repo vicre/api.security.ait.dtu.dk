@@ -1,6 +1,0 @@
-version: 2
-updates:
-  - package-ecosystem: "pip"  # or another package manager like npm, maven, etc.
-    directory: "/app-main"  # Set this to the directory you want Dependabot to scan
-    schedule:
-      interval: "weekly"  # or daily, monthly, etc., depending on your needs

@@ -18,7 +18,7 @@ This app is designed for environments with multiple sub-IT departments, where se
 ### Test mode
 1. Install dependencies:
    ```bash
-   pip install -r app-main/requirements.txt
+   pip install -r requirements.txt
    ```
 2. Start the application with Gunicorn in test mode (auto-reloading on changes):
    ```bash
@@ -37,7 +37,7 @@ extension to start developing.
 
 - Microsoft Graph and Defender bearer tokens are generated using client credentials from environment variables and are persisted in the database (`graph.ServiceToken`).
 - Do not provide bearer tokens via environment variables anymore; any legacy `*_ACCESS_BEARER_TOKEN` values are ignored except for a one-time bootstrap into the database at startup.
-- You can proactively generate and persist tokens by running: `python app-main/manage.py refresh_service_tokens` (optionally pass `--service graph` or `--service defender`).
+- You can proactively generate and persist tokens by running: `python manage.py refresh_service_tokens` (optionally pass `--service graph` or `--service defender`).
 
 ## Azure AD frontend integration
 
@@ -49,7 +49,7 @@ extension to start developing.
 
 A detailed, step-by-step deployment walkthrough is available in
 [`docs/coolify-deployment-guide.md`](docs/coolify-deployment-guide.md). In summary, Coolify can build and run the application
-directly from this repository using the provided `Dockerfile` and `docker-compose.coolify.yml` compose descriptor. The compose
+directly from this repository using the provided `backend/Dockerfile` and repository-root `docker-compose.yaml` descriptor. The compose
 file wires the Django container to PostgreSQL, exposes the Gunicorn service to Traefik, and provisions persistent volumes for
 static and media assets.
 
@@ -58,8 +58,10 @@ At a minimum you will:
 1. Copy `.env.example` to `.env` (or paste the same key/value pairs into Coolify) and provide values for `DJANGO_SECRET`, the
    `POSTGRES_*` credentials, admin bootstrap credentials (`DJANGO_ADMIN_USERNAME` and `DJANGO_ADMIN_PASSWORD`), the optional
    `TRAEFIK_NETWORK` override, and any integration secrets you require.
-2. Create a Coolify **Docker Compose** application that points to this repository and select `docker-compose.coolify.yml` as the
-   compose file. By default the stack creates its own Traefik network called `api-security-proxy` and the labels route traffic
+2. Create a Coolify **Docker Compose** application with:
+   - Base Directory: `/`
+   - Docker Compose Location: `/docker-compose.yaml`
+   By default the stack reuses the Traefik network defined by `TRAEFIK_NETWORK` and the labels route traffic
    across that network. If you prefer to reuse an existing proxy network such as `coolify-network`, set `TRAEFIK_NETWORK` to the
    network name and `TRAEFIK_NETWORK_EXTERNAL=true` before triggering a deployment.
 3. Deploy the stack. Coolify will build the image from `Dockerfile`, run database migrations and `collectstatic` via
@@ -118,7 +120,7 @@ and private key to the host so that the Traefik container can read them:
 
 3. Restart the proxy with `docker restart coolify-proxy`. Once Traefik reloads, HTTPS requests to
    `https://api.security.ait.dtu.dk` will present your uploaded certificate while still routing to the Django container defined
-   in `docker-compose.coolify.yml`.
+   in `/docker-compose.yaml`.
 
 To run the same stack locally without Coolify:
 
@@ -126,7 +128,7 @@ To run the same stack locally without Coolify:
 cp .env.example .env
 # Update POSTGRES_PASSWORD if you do not want to use the default `please-change-me`
 # and ensure the value matches the password stored in the PostgreSQL volume.
-docker compose -f docker-compose.coolify.yml up --build
+docker compose -f ../docker-compose.yaml up --build
 ```
 
 The web container automatically waits for PostgreSQL, applies migrations, and runs `collectstatic` on startup. Static and

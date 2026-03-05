@@ -1,0 +1,163 @@
+:root {
+    --mfa-surface-1: #f8fafc;
+    --mfa-surface-2: #eef4ff;
+    --mfa-border-soft: rgba(15, 23, 42, 0.12);
+    --mfa-shadow-soft: 0 10px 26px rgba(15, 23, 42, 0.08);
+    --mfa-shadow-subtle: 0 4px 14px rgba(15, 23, 42, 0.06);
+    --mfa-success-bg: linear-gradient(180deg, #d6f6df 0%, #bcefd0 100%);
+    --mfa-success-fg: #0f5132;
+}
+
+.mfa-main {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.user-principal-info {
+    background-color: var(--mfa-surface-1);
+    margin-bottom: 0.75rem;
+    box-shadow: var(--mfa-shadow-subtle);
+}
+
+.user-details-card {
+    border-color: var(--mfa-border-soft);
+    box-shadow: var(--mfa-shadow-soft);
+}
+
+.user-details-card .user-photo {
+    width: 96px;
+    height: 96px;
+    object-fit: cover;
+    border-radius: 50%;
+}
+
+.user-photo-placeholder {
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    border: 1px dashed rgba(15, 23, 42, 0.2);
+    background-color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.875rem;
+}
+
+.user-group-list .list-group-item {
+    padding-left: 0;
+    padding-right: 0;
+}
+
+.auth-method-card {
+    border-color: var(--mfa-border-soft);
+    box-shadow: var(--mfa-shadow-subtle);
+}
+
+.auth-method-card dl {
+    margin-bottom: 0;
+}
+
+.auth-method-card dt {
+    font-weight: 600;
+}
+
+.auth-method-card dd {
+    margin-bottom: 0.5rem;
+}
+
+.mfa-side-panel {
+    position: sticky;
+    top: 1rem;
+    background: var(--mfa-success-bg);
+    border-radius: 1rem;
+    padding: 1.25rem;
+    box-shadow: 0 16px 32px rgba(16, 82, 50, 0.18);
+    color: var(--mfa-success-fg);
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.mfa-side-panel-title {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: 650;
+    letter-spacing: 0.01em;
+}
+
+.mfa-side-panel-body {
+    background-color: rgba(255, 255, 255, 0.92);
+    border-radius: 0.8rem;
+    padding: 0.85rem;
+    box-shadow: inset 0 0 0 1px rgba(15, 81, 50, 0.14);
+}
+
+.mfa-side-panel-table {
+    border-radius: 0.75rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    box-shadow: var(--mfa-shadow-subtle);
+}
+
+.mfa-side-panel-table table {
+    min-width: 32rem;
+}
+
+.mfa-side-panel .table {
+    background-color: transparent;
+}
+
+.mfa-side-panel .table thead th {
+    color: #0f5132;
+    border-bottom-color: rgba(15, 81, 50, 0.22);
+    background-color: rgba(200, 241, 212, 0.46);
+    white-space: nowrap;
+}
+
+.mfa-side-panel .table tbody td {
+    border-color: rgba(15, 81, 50, 0.12);
+}
+
+.reset-history-table tbody td {
+    vertical-align: middle;
+}
+
+.reset-history-table .reset-history-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.reset-history-table .placeholder-avatar {
+    background-color: #f8f9fa;
+    border: 1px dashed #d0d0d0;
+}
+
+/* Allow tooltip in the label to expand if needed */
+.tooltip-inner {
+    max-width: none;
+    width: auto;
+}
+
+@media (max-width: 1199.98px) {
+    .mfa-side-panel {
+        position: static;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .mfa-main {
+        gap: 1rem;
+    }
+
+    .mfa-side-panel {
+        border-radius: 0.75rem;
+        padding: 1rem;
+    }
+
+    .mfa-side-panel-table table {
+        min-width: 24rem;
+    }
+}

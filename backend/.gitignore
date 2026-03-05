@@ -1,10 +1,11 @@
 *.env
+*.env*
 *.old
 *.log
 *.bak
 __pycache__/
 app/venv/
-app-main/venv/
+*venv/
 examples/venv/
 .migrate/
 # examples/
@@ -12,13 +13,13 @@ shared-project-data/
 
 
 .bash
-app-main/db.sqlite3
+*db.sqlite3
 
 .migrate/
 
 shared-project-data/django/
 
-app-main/data.json
+*data.json
 .devcontainer/dockerfiles/not-used-anymore/
 !.devcontainer/dockerfiles/not-used-anymore/.gitkeep
 

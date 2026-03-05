@@ -1,7 +1,7 @@
 services:
   web:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
       target: production
     restart: unless-stopped

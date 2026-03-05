@@ -37,23 +37,6 @@ RUN apt-get update \
         unixodbc-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install ngrok CLI for local tunneling.
-ARG NGROK_DOWNLOAD_BASE="https://bin.equinox.io/c/bNyj1mQVY4c"
-ARG NGROK_VERSION="v3-stable"
-RUN set -eux; \
-    arch="$(dpkg --print-architecture)"; \
-    case "$arch" in \
-        amd64) ngrok_arch="linux-amd64" ;; \
-        arm64) ngrok_arch="linux-arm64" ;; \
-        armhf) ngrok_arch="linux-arm" ;; \
-        i386) ngrok_arch="linux-386" ;; \
-        *) echo "Unsupported architecture for ngrok: $arch" >&2; exit 1 ;; \
-    esac; \
-    curl -fsSL "${NGROK_DOWNLOAD_BASE}/ngrok-${NGROK_VERSION}-${ngrok_arch}.tgz" -o /tmp/ngrok.tgz; \
-    tar -xzf /tmp/ngrok.tgz -C /usr/local/bin ngrok; \
-    chmod +x /usr/local/bin/ngrok; \
-    rm /tmp/ngrok.tgz
-
 # Create an unprivileged user to run the application.
 RUN groupadd --system django \
     && useradd --system --gid django --home /home/django --shell /bin/bash django \
@@ -64,7 +47,7 @@ RUN groupadd --system django \
 WORKDIR /app
 
 # Install Python dependencies once in the base layer.
-COPY app-main/requirements.txt /tmp/requirements.txt
+COPY requirements.txt /tmp/requirements.txt
 RUN python -m pip install --upgrade pip \
     && pip install --no-cache-dir -r /tmp/requirements.txt
 
@@ -100,7 +83,7 @@ WORKDIR /app
 COPY . /app
 RUN chown -R django:django /app
 
-WORKDIR /app/app-main
+WORKDIR /app
 EXPOSE 8121
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
