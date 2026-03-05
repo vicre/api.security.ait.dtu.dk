@@ -18,7 +18,7 @@ This app is designed for environments with multiple sub-IT departments, where se
 ### Test mode
 1. Install dependencies:
    ```bash
-   pip install -r app-main/requirements.txt
+   pip install -r requirements.txt
    ```
 2. Start the application with Gunicorn in test mode (auto-reloading on changes):
    ```bash
@@ -37,7 +37,7 @@ extension to start developing.
 
 - Microsoft Graph and Defender bearer tokens are generated using client credentials from environment variables and are persisted in the database (`graph.ServiceToken`).
 - Do not provide bearer tokens via environment variables anymore; any legacy `*_ACCESS_BEARER_TOKEN` values are ignored except for a one-time bootstrap into the database at startup.
-- You can proactively generate and persist tokens by running: `python app-main/manage.py refresh_service_tokens` (optionally pass `--service graph` or `--service defender`).
+- You can proactively generate and persist tokens by running: `python manage.py refresh_service_tokens` (optionally pass `--service graph` or `--service defender`).
 
 ## Azure AD frontend integration
 

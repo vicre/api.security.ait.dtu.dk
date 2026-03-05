@@ -8,16 +8,15 @@ import msal
 import requests
 from requests import exceptions as requests_exceptions
 from django.conf import settings
-from django.contrib.auth import login, logout
+from django.contrib.auth import get_user_model, login, logout
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.models import User
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.views.decorators.cache import cache_control
 from django.views.decorators.http import require_GET
 from msal import ConfidentialClientApplication
-from myview.models import ADStaffSyncGroup, UserLoginLog
+from myview.models import UserLoginLog
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +29,18 @@ def _resolve_redirect_uri(request) -> str:
     """Determine which redirect URI to hand to Azure AD for this request."""
 
     callback_url = _build_callback_absolute_uri(request)
+
+    allowed_redirect_uris = tuple(
+        uri.strip()
+        for uri in os.getenv("AZURE_REDIRECT_URIS", "").split(",")
+        if uri.strip()
+    )
+    if allowed_redirect_uris:
+        callback_normalised = callback_url.rstrip("/")
+        for allowed_uri in allowed_redirect_uris:
+            if callback_normalised == allowed_uri.rstrip("/"):
+                return callback_url
+
     configured_uri = (getattr(settings, 'AZURE_AD', {}) or {}).get('REDIRECT_URI')
     if not configured_uri:
         return callback_url
@@ -66,7 +77,7 @@ def _resolve_redirect_uri(request) -> str:
         )
         return callback_url
 
-    path = configured_parsed.path or callback_parsed.path or '/auth/callback/'
+    path = configured_parsed.path or callback_parsed.path or '/auth/callback'
     normalised = configured_parsed._replace(path=path)
     return urlunparse(normalised)
 
@@ -76,6 +87,29 @@ def _get_client_ip(request):
     if x_forwarded_for:
         return x_forwarded_for.split(',')[0].strip()
     return request.META.get('REMOTE_ADDR')
+
+
+def _build_token_error_message(token_response, redirect_uri: str) -> str:
+    """Build a user-facing message for MSAL token-exchange failures."""
+
+    if not isinstance(token_response, dict):
+        return "Token endpoint returned an unexpected response."
+
+    error = str(token_response.get("error") or "unknown_error")
+    description = str(token_response.get("error_description") or "")
+    upper_description = description.upper()
+
+    hint = "Please restart sign-in from /login/."
+    if "AADSTS7000215" in upper_description or error == "invalid_client":
+        hint = "Invalid client secret configured for the app registration."
+    elif "AADSTS50011" in upper_description:
+        hint = f"Redirect URI mismatch. Azure app registration must include: {redirect_uri}"
+    elif "AADSTS54005" in upper_description:
+        hint = "Authorization code was already redeemed. Start sign-in again and do not refresh /auth/callback."
+    elif "AADSTS70000" in upper_description or error == "invalid_grant":
+        hint = "Authorization code is invalid or expired. Start sign-in again from /login/."
+
+    return f"Token exchange failed ({error}). {hint}"
 
 def msal_callback(request):
     # The state should be passed to the authorization request and validated in the response.
@@ -95,7 +129,7 @@ def msal_callback(request):
         return HttpResponse("Error: code not received.", status=400)
 
     code = request.GET['code']
-    state = request.GET.get('state')
+    _state = request.GET.get('state')
     activity_username = request.GET.get('login_hint', '')
 
     # Validate the state parameter (if you passed one in the authorization request)
@@ -103,11 +137,27 @@ def msal_callback(request):
     # MSAL Config
     azure_config = getattr(settings, 'AZURE_AD', {}) or {}
     tenant_id = azure_config.get('TENANT_ID') or os.getenv('AZURE_TENANT_ID')
-    authority_url = azure_config.get('AUTHORITY') or f'https://login.microsoftonline.com/{tenant_id}'
+    authority_url = (
+        azure_config.get('AUTHORITY')
+        or os.getenv('AIT_SOC_MSAL_VICRE_AUTHORITY')
+        or f'https://login.microsoftonline.com/{tenant_id}'
+    )
     client_id = azure_config.get('CLIENT_ID') or os.getenv('AIT_SOC_MSAL_VICRE_CLIENT_ID')
     client_secret = azure_config.get('CLIENT_SECRET') or os.getenv('AIT_SOC_MSAL_VICRE_MSAL_SECRET_VALUE')
     redirect_uri = _resolve_redirect_uri(request)
     logger.debug("MSAL callback resolved redirect_uri=%s", redirect_uri)
+
+    if not client_id or not client_secret or not authority_url:
+        logger.error(
+            "MSAL callback config missing required values (client_id_present=%s client_secret_present=%s authority=%s)",
+            bool(client_id),
+            bool(client_secret),
+            authority_url,
+        )
+        return HttpResponse(
+            "Error: MSAL configuration is incomplete on the server.",
+            status=500,
+        )
 
     # Initialize the MSAL confidential client
     client_app = msal.ConfidentialClientApplication(
@@ -221,17 +271,17 @@ def msal_callback(request):
             # Extract the preferred username (which could be the user's email)
             user_principal_name = user_data.get('userPrincipalName')
             on_premises_immutable_id = user_data.get('onPremisesImmutableId')
-            username = user_data.get('userPrincipalName').rsplit('@')[0] # vicre@dtu.dk
+            if not user_principal_name:
+                return HttpResponse("Error: Graph userPrincipalName was missing.", status=502)
+
+            username = user_principal_name.rsplit('@')[0]  # vicre@dtu.dk
             activity_username = user_principal_name or username
             first_name = user_data.get('givenName')
             last_name = user_data.get('surname')
-            email = user_data.get('mail')
+            email = user_data.get('mail') or user_principal_name
 
-
-
-
-            from app.scripts.azure_user_is_synced_with_on_premise_users import azure_user_is_synced_with_on_premise_users
-            if not azure_user_is_synced_with_on_premise_users(sam_accountname=username, on_premises_immutable_id=on_premises_immutable_id):
+            # Require on-prem synchronisation before granting MFA reset access.
+            if not on_premises_immutable_id:
                 try:
                     from myview.models import UserActivityLog
 
@@ -251,59 +301,33 @@ def msal_callback(request):
 
                 return HttpResponse(denial_message, status=403)
 
-
-            from app.scripts.create_or_update_django_user import create_or_update_django_user
-            create_or_update_django_user(username=username, first_name=first_name, last_name=last_name, email=email)
-            user = User.objects.get(username=username)
+            user_model = get_user_model()
+            user, _created = user_model.objects.get_or_create(
+                username=username,
+                defaults={
+                    "first_name": first_name or "",
+                    "last_name": last_name or "",
+                    "email": email or "",
+                },
+            )
+            updates = []
+            if (first_name or "") != (user.first_name or ""):
+                user.first_name = first_name or ""
+                updates.append("first_name")
+            if (last_name or "") != (user.last_name or ""):
+                user.last_name = last_name or ""
+                updates.append("last_name")
+            if (email or "") != (user.email or ""):
+                user.email = email or ""
+                updates.append("email")
+            if updates:
+                user.save(update_fields=updates)
             user.backend = 'django.contrib.auth.backends.ModelBackend'
 
-            # Sync user AD groups (force on login to ensure fresh membership)
-            ADStaffSyncGroup.sync_user_ad_groups_cached(
-                username=user.username,
-                force=True,
-            )
-
-            required_groups = getattr(settings, 'IT_STAFF_API_GROUP_CANONICAL_NAMES', ())
-            has_required_group = True
-            if required_groups:
-                has_required_group = ADStaffSyncGroup.objects.filter(
-                    canonical_name__in=required_groups,
-                    members=user,
-                ).exists()
-
-            if not has_required_group:
-                configured_groups = list(
-                    ADStaffSyncGroup.objects.filter(
-                        canonical_name__in=required_groups
-                    ).values_list('name', flat=True)
-                )
-                if not configured_groups:
-                    configured_groups = list(required_groups)
-
-                denial_message = (
-                    "You are not authorised to access this application. "
-                    "Membership in one of the IT Staff API groups is required. "
-                    "If you believe you should have access, please contact vicre@dtu.dk."
-                )
-
-                try:
-                    from myview.models import UserActivityLog
-
-                    UserActivityLog.log_login(
-                        username=activity_username or username,
-                        request=request,
-                        was_successful=False,
-                        message=(
-                            "Login denied because the user is not a member of any authorised IT Staff API group. "
-                            f"Configured groups: {', '.join(configured_groups)}"
-                        ),
-                    )
-                except Exception:
-                    logger.exception('Failed to log login denial due to missing IT Staff API group membership')
-
-                return HttpResponse(denial_message, status=403)
-
             login(request, user)
+            request.session["user_principal_name"] = user_principal_name
+            request.session["azure_object_id"] = user_data.get("id", "")
+            request.session.modified = True
             try:
                 UserLoginLog.objects.create(
                     user=user,
@@ -335,7 +359,7 @@ def msal_callback(request):
             if user.is_superuser:
                 return HttpResponseRedirect(reverse('admin:index'))
             else:
-                return redirect('/myview/frontpage/')
+                return redirect('/myview/mfa-reset/')
             
         else:
             # Handle failure or show an error message to the user
@@ -354,6 +378,20 @@ def msal_callback(request):
             return HttpResponse("Error: failed to retrieve user information.", status=graph_response.status_code)
     else:
         # Handle failure or show an error message to the user
+        token_error_message = _build_token_error_message(token_response, redirect_uri)
+        error = token_response.get("error") if isinstance(token_response, dict) else "unknown_error"
+        error_description = token_response.get("error_description") if isinstance(token_response, dict) else ""
+        logger.error(
+            "MSAL token exchange failed error=%s description=%s redirect_uri=%s authority=%s client_id=%s trace_id=%s correlation_id=%s timestamp=%s",
+            error,
+            error_description,
+            redirect_uri,
+            authority_url,
+            client_id,
+            token_response.get("trace_id") if isinstance(token_response, dict) else "",
+            token_response.get("correlation_id") if isinstance(token_response, dict) else "",
+            token_response.get("timestamp") if isinstance(token_response, dict) else "",
+        )
         try:
             from myview.models import UserActivityLog
 
@@ -361,12 +399,12 @@ def msal_callback(request):
                 username=request.GET.get('login_hint', ''),
                 request=request,
                 was_successful=False,
-                message="Failed to retrieve access token from MSAL authorization code exchange.",
+                message=f"Failed to retrieve access token from MSAL authorization code exchange. {token_error_message}",
             )
         except Exception:
             logger.exception('Failed to log login failure due to missing access token')
 
-        return HttpResponse("Error: failed to retrieve access token.", status=400)
+        return HttpResponse(f"Error: {token_error_message}", status=400)
 
 @require_GET
 @cache_control(no_cache=True, must_revalidate=True, no_store=True)
@@ -379,26 +417,18 @@ def health_check(request):
     return response
 
 @login_required
-def msal_director(request):      
-    try:
-        
-        if request.user.is_superuser:
-            return HttpResponseRedirect(reverse('admin:index'))  # Redirect to admin page
-        elif request.user:
-            return HttpResponseRedirect('/myview/frontpage/')
-    
-        HttpResponseRedirect('/myview/only-allowed-for-it-staff/')
-
-    except ImportError:
-        print("ADStaffSyncGroup model is not available for registration in the admin site.")
-        HttpResponseRedirect('/myview/only-allowed-for-it-staff/') 
+def msal_director(request):
+    if request.user.is_superuser:
+        return HttpResponseRedirect(reverse('admin:index'))
+    return HttpResponseRedirect('/myview/mfa-reset/')
 
 def msal_login(request):
     start_time = time.monotonic()
     redirect_uri = _resolve_redirect_uri(request)
     logger.info(
-        "MSAL login start client_id=%s redirect_uri=%s scope=%s",
+        "MSAL login start client_id=%s authority=%s redirect_uri=%s scope=%s",
         settings.AZURE_AD['CLIENT_ID'],
+        settings.AZURE_AD['AUTHORITY'],
         redirect_uri,
         settings.AZURE_AD['SCOPE'],
     )
@@ -432,8 +462,7 @@ def msal_logout(request):
     
     logout(request)
     # Send users to Azure logout then back to our frontpage.
-    base_url = os.getenv('SERVICE_URL_WEB', 'http://localhost:8121').rstrip('/')
-    post_logout_redirect = f"{base_url}/myview/frontpage/"
+    post_logout_redirect = request.build_absolute_uri('/myview/mfa-reset/')
     logout_url = (
         "https://login.microsoftonline.com/common/oauth2/v2.0/logout?post_logout_redirect_uri="
         + urllib.parse.quote(post_logout_redirect, safe="")

@@ -30,6 +30,31 @@
         {% endfor %}
     {% endif %}
 
+    <section class="alert alert-secondary mb-4" role="region" aria-label="{% trans 'MFA reset audit visibility' %}">
+        <h5 class="mb-2">{% trans "MFA reset visibility" %}</h5>
+        <p class="mb-0">
+            {% trans "All authenticated users can see the complete MFA reset history. Every reset is logged with who performed it and when." %}
+        </p>
+    </section>
+
+    <section class="alert alert-info mb-4" role="region" aria-label="{% trans 'MFA reset scope access' %}">
+        <h5 class="mb-2">{% trans "Your MFA reset scope" %}</h5>
+        {% if actor_scope_codes %}
+            <p class="mb-1">
+                {% blocktrans with scope_list=actor_scope_codes|join:", " %}
+                    You can reset MFA for users in these DTUBaseUsers scopes: {{ scope_list }}.
+                {% endblocktrans %}
+            </p>
+            <p class="mb-0">
+                {% trans "Scope is synced from your MFAResetAdmins AD group metadata (comma-separated values in extensionAttribute)." %}
+            </p>
+        {% else %}
+            <p class="mb-0">
+                {% trans "No MFA reset scope was found for your account in AD. You can sign in and view audit history, but reset actions are blocked." %}
+            </p>
+        {% endif %}
+    </section>
+
     <form method="post" class="mb-4">
         {% csrf_token %}
         <input type="hidden" name="action" value="lookup">
@@ -58,6 +83,23 @@
     {% if selected_user_principal_name %}
         <div class="user-principal-info p-3 mb-3 bg-light border rounded">
             <strong>{% trans "Results for" %}:</strong> {{ selected_user_principal_name }}
+        </div>
+        <div class="alert {% if target_in_scope %}alert-success{% else %}alert-warning{% endif %} mb-3" role="status">
+            {% if target_scope_code %}
+                {% if target_in_scope %}
+                    {% blocktrans with target_scope=target_scope_code %}
+                        Target user scope: {{ target_scope }}. MFA reset is allowed.
+                    {% endblocktrans %}
+                {% else %}
+                    {% blocktrans with target_scope=target_scope_code %}
+                        Target user scope: {{ target_scope }}. MFA reset is blocked because this scope is outside your assignment.
+                    {% endblocktrans %}
+                {% endif %}
+            {% elif is_superuser and target_in_scope %}
+                {% trans "Target user scope could not be determined from AD, but superuser override allows MFA reset." %}
+            {% else %}
+                {% trans "Target user scope could not be determined from AD, so MFA reset is blocked." %}
+            {% endif %}
         </div>
     {% endif %}
 
@@ -211,7 +253,10 @@
         </div>
         <div class="col-lg-4 col-xl-3">
             <aside class="mfa-side-panel">
-                <h3 class="mfa-side-panel-title">{% trans "Recent MFA resets in your scope" %}</h3>
+                <h3 class="mfa-side-panel-title">{% trans "Recent MFA resets" %}</h3>
+                <p class="text-muted small mb-2">
+                    {% trans "Visible to all authenticated users of this app." %}
+                </p>
                 <div class="mfa-side-panel-body">
                     {% if mfa_reset_history %}
                         <div class="table-responsive mfa-side-panel-table">
@@ -270,7 +315,7 @@
                             </table>
                         </div>
                     {% else %}
-                        <p class="text-muted mb-0">{% trans "No MFA resets have been recorded in your scope yet." %}</p>
+                        <p class="text-muted mb-0">{% trans "No MFA resets have been recorded yet." %}</p>
                     {% endif %}
                 </div>
             </aside>

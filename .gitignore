@@ -1,3 +1,4 @@
 *.env
 *.env*.bak
 certs
+logs/django.log

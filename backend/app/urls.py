@@ -31,7 +31,8 @@ admin_path = settings.ADMIN_URL_PATH
 
 urlpatterns = [
     path("login/", msal_login, name="msal_login"),
-    path('auth/callback/', msal_callback, name='msal_callback'),
+    path('auth/callback', msal_callback, name='msal_callback'),
+    path('auth/callback/', msal_callback),
     path("login-redirector/", msal_director, name="msal_login_redirector"),
     path("logout/", msal_logout, name="msal_logout"),
     path("healthz/", health_check, name="health_check"),
@@ -51,9 +52,6 @@ urlpatterns = [
 
     # graph api
     path('', include('graph.urls')),
-
-    # active directory api
-    path('', include('active_directory.urls')),
 
 ]
 

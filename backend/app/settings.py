@@ -172,12 +172,38 @@ if not default_it_staff_groups:
 
 IT_STAFF_API_GROUP_CANONICAL_NAMES = tuple(default_it_staff_groups)
 
+default_mfa_reset_group_prefixes = _split_env_list(
+    os.getenv("MFA_RESET_GROUP_CANONICAL_PREFIXES")
+)
+if not default_mfa_reset_group_prefixes:
+    default_mfa_reset_group_prefixes = [
+        "win.dtu.dk/AIT/CIS/SOC/Groups/API-SECURITY-AIT-DTU-DK",
+    ]
+
+MFA_RESET_GROUP_CANONICAL_PREFIXES = tuple(default_mfa_reset_group_prefixes)
+
 default_ou_limiter_bases = _split_env_list(os.getenv('AD_OU_LIMITER_BASES'))
 if not default_ou_limiter_bases:
     default_ou_limiter_bases = ['win.dtu.dk/DTUBaseUsers']
 
 AD_OU_LIMITER_BASES = tuple(default_ou_limiter_bases)
 AD_OU_LIMITER_DELETE_MISSING = _as_bool(os.getenv('AD_OU_LIMITER_DELETE_MISSING'), True)
+
+MFA_RESET_ADMINS_BASE_DN = os.getenv(
+    "MFA_RESET_ADMINS_BASE_DN",
+    "OU=MFAResetAdmins,OU=Groups,OU=SOC,OU=CIS,OU=AIT,DC=win,DC=dtu,DC=dk",
+)
+MFA_RESET_SCOPE_ATTRIBUTE = os.getenv("MFA_RESET_SCOPE_ATTRIBUTE", "extensionAttribute1")
+MFA_RESET_DTUBASE_USERS_OU = os.getenv("MFA_RESET_DTUBASE_USERS_OU", "OU=DTUBaseUsers")
+try:
+    MFA_RESET_SCOPE_CACHE_SECONDS = max(0, int(os.getenv("MFA_RESET_SCOPE_CACHE_SECONDS", "300")))
+except ValueError:
+    MFA_RESET_SCOPE_CACHE_SECONDS = 300
+
+MFA_RESET_HISTORY_INCLUDE_PHOTOS = _as_bool(
+    os.getenv("MFA_RESET_HISTORY_INCLUDE_PHOTOS"),
+    False,
+)
 
 # Have I Been Pwned proxy configuration
 HIBP_API_BASE_URL = os.getenv('HIBP_API_BASE_URL', 'https://api.haveibeenpwned.cert.dk')
@@ -221,14 +247,27 @@ LOGIN_URL='/login/'
 
 _service_url_web = os.getenv('SERVICE_URL_WEB', 'http://localhost:8121').rstrip('/')
 _redirect_uri_default = f"{_service_url_web}/auth/callback"
+_azure_tenant_id = os.getenv('AZURE_TENANT_ID')
+_azure_authority = (
+    os.getenv('AIT_SOC_MSAL_VICRE_AUTHORITY')
+    or os.getenv('AZURE_AUTHORITY')
+    or (f'https://login.microsoftonline.com/{_azure_tenant_id}' if _azure_tenant_id else 'https://login.microsoftonline.com/common')
+).rstrip('/')
+
+if not _azure_tenant_id:
+    parsed_authority = urlparse(_azure_authority)
+    authority_path = (parsed_authority.path or '').strip('/')
+    authority_tenant = authority_path.split('/', 1)[0] if authority_path else ''
+    if authority_tenant and authority_tenant.lower() not in {'common', 'organizations', 'consumers'}:
+        _azure_tenant_id = authority_tenant
 
 AZURE_AD = {
-    'TENANT_ID': os.getenv('AZURE_TENANT_ID'),
+    'TENANT_ID': _azure_tenant_id,
     'CLIENT_ID': os.getenv('AIT_SOC_MSAL_VICRE_CLIENT_ID'),
     'CLIENT_SECRET': os.getenv('AIT_SOC_MSAL_VICRE_MSAL_SECRET_VALUE'),
     # Prefer explicit override, fall back to SERVICE_URL_WEB + /auth/callback
     'REDIRECT_URI': os.getenv('AZURE_REDIRECT_URI', _redirect_uri_default),
-    'AUTHORITY': f'https://login.microsoftonline.com/{os.getenv("AZURE_TENANT_ID")}',
+    'AUTHORITY': _azure_authority,
     'SCOPE': ['User.Read']  # Add other scopes if needed
 }
 
@@ -300,6 +339,7 @@ default_allowed_hosts = [
     'localhost',
     '127.0.0.1',
     '192.38.87.230',
+    'preview-api.security.ait.dtu.dk',
     'api.security.ait.dtu.dk',
     'dev-api.security.ait.dtu.dk',
     'beta-api.security.ait.dtu.dk',
@@ -499,9 +539,8 @@ STATIC_ROOT = _ensure_storage_dir(
     fallback_path=BASE_DIR / 'staticfiles',
     description='static',
 )
-STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'static'),
-]
+_project_static_dir = BASE_DIR / 'static'
+STATICFILES_DIRS = [str(_project_static_dir)] if _project_static_dir.exists() else []
 
 STATICFILES_STORAGE = 'myview.storage.LenientCompressedManifestStaticFilesStorage'
 

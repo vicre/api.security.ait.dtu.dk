@@ -4,10 +4,10 @@
             "name": "ServerLive: localhost_debug_true_settings",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/backend/app-main/manage.py",
+            "program": "${workspaceFolder}/backend/manage.py",
             "args": [
                 "runserver",
-                "0.0.0.0:6081",
+                "0.0.0.0:8121",
                 "--settings",
                 "app.localhost_debug_true_settings"
             ],
@@ -19,10 +19,10 @@
             "name": "ServerLive: localhost_debug_false_settings",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/backend/app-main/manage.py",
+            "program": "${workspaceFolder}/backend/manage.py",
             "args": [
                 "runserver",
-                "0.0.0.0:6081",
+                "0.0.0.0:8121",
                 "--settings",
                 "app.localhost_debug_false_settings"
             ],
@@ -34,7 +34,7 @@
             "name": "ServerLive: production_settings",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/backend/app-main/manage.py",
+            "program": "${workspaceFolder}/backend/manage.py",
             "args": [
                 "runserver",
                 "0.0.0.0:8121",
@@ -50,7 +50,7 @@
             "name": "ServerLive: dev-api (https)",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/backend/app-main/manage.py",
+            "program": "${workspaceFolder}/backend/manage.py",
             "args": [
                 "runserver_plus",
                 "0.0.0.0:8121",

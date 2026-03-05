@@ -32,6 +32,7 @@ ENV_FILE_CANDIDATES = [
 ]
 DATA_DIR = Path(os.environ.get("DJANGO_DOCKER_DATA_DIR", "/data"))
 PRIMARY_HOSTNAME = "api.security.ait.dtu.dk"
+PREVIEW_HOSTNAME = "preview-api.security.ait.dtu.dk"
 DEV_HOSTNAME = os.environ.get("DJANGO_DEV_HOSTNAME", "dev-api.security.ait.dtu.dk").strip()
 
 
@@ -211,6 +212,7 @@ _ensure_env_list(
     "DJANGO_ALLOWED_HOSTS",
     [
         PRIMARY_HOSTNAME,
+        PREVIEW_HOSTNAME,
         "beta-api.security.ait.dtu.dk",
         DEV_HOSTNAME,
         "localhost",
@@ -221,7 +223,10 @@ _ensure_env_list(
     "DJANGO_CSRF_TRUSTED_ORIGINS",
     [
         f"https://{PRIMARY_HOSTNAME}",
+        f"https://{PREVIEW_HOSTNAME}",
         f"https://{DEV_HOSTNAME}",
+        "http://localhost:8121",
+        "http://127.0.0.1:8121",
     ],
 )
 
