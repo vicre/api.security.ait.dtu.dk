@@ -242,7 +242,7 @@ def _prefer_local_storage_dirs_when_needed() -> None:
 
 
 def _fallback_to_sqlite_when_compose_db_is_unavailable() -> None:
-    """Drop compose Postgres defaults locally when the Docker hostname is missing."""
+    """Optionally drop compose Postgres defaults when explicitly allowed."""
 
     postgres_host = (os.environ.get("POSTGRES_HOST") or "").strip()
     if postgres_host != "db":
@@ -251,12 +251,22 @@ def _fallback_to_sqlite_when_compose_db_is_unavailable() -> None:
     if _hostname_resolves(postgres_host):
         return
 
+    allow_sqlite_fallback = os.environ.get("PRODUCTION_SETTINGS_ALLOW_SQLITE_FALLBACK", "").strip().lower()
+    if allow_sqlite_fallback not in {"1", "true", "yes", "on"}:
+        raise RuntimeError(
+            "POSTGRES_HOST='db' is not resolvable in this environment. "
+            "Use a reachable PostgreSQL host for preview/production-style runs, "
+            "or set PRODUCTION_SETTINGS_ALLOW_SQLITE_FALLBACK=1 for local-only "
+            "debug sessions."
+        )
+
     for env_var in ("POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_HOST", "POSTGRES_PORT"):
         os.environ.pop(env_var, None)
 
     warnings.warn(
-        "POSTGRES_HOST='db' is not resolvable in this environment; "
-        "falling back to the local SQLite database for production_settings.",
+        "POSTGRES_HOST='db' is not resolvable in this environment and "
+        "PRODUCTION_SETTINGS_ALLOW_SQLITE_FALLBACK is enabled; falling back "
+        "to the local SQLite database for production_settings.",
         stacklevel=2,
     )
 
