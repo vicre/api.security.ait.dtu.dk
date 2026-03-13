@@ -129,20 +129,6 @@ def _discover_local_ipv4_hosts() -> list[str]:
     return [ip for ip in host_ips if ip and not ip.startswith("127.")]
 
 
-def _hostname_resolves(hostname: str) -> bool:
-    """Return True when ``hostname`` resolves via local DNS or hosts entries."""
-
-    if not hostname:
-        return False
-
-    try:
-        socket.getaddrinfo(hostname, None)
-    except socket.gaierror:
-        return False
-
-    return True
-
-
 # Ensure the dev hostname resolves locally so the certificate CN matches.
 def _ensure_dev_hostname_in_hosts(hostname: str) -> None:
     """Append a loopback mapping for ``hostname`` to /etc/hosts if missing."""
@@ -241,36 +227,6 @@ def _prefer_local_storage_dirs_when_needed() -> None:
         os.environ[env_var] = str(local_path)
 
 
-def _fallback_to_sqlite_when_compose_db_is_unavailable() -> None:
-    """Optionally drop compose Postgres defaults when explicitly allowed."""
-
-    postgres_host = (os.environ.get("POSTGRES_HOST") or "").strip()
-    if postgres_host != "db":
-        return
-
-    if _hostname_resolves(postgres_host):
-        return
-
-    allow_sqlite_fallback = os.environ.get("PRODUCTION_SETTINGS_ALLOW_SQLITE_FALLBACK", "").strip().lower()
-    if allow_sqlite_fallback not in {"1", "true", "yes", "on"}:
-        raise RuntimeError(
-            "POSTGRES_HOST='db' is not resolvable in this environment. "
-            "Use a reachable PostgreSQL host for preview/production-style runs, "
-            "or set PRODUCTION_SETTINGS_ALLOW_SQLITE_FALLBACK=1 for local-only "
-            "debug sessions."
-        )
-
-    for env_var in ("POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_HOST", "POSTGRES_PORT"):
-        os.environ.pop(env_var, None)
-
-    warnings.warn(
-        "POSTGRES_HOST='db' is not resolvable in this environment and "
-        "PRODUCTION_SETTINGS_ALLOW_SQLITE_FALLBACK is enabled; falling back "
-        "to the local SQLite database for production_settings.",
-        stacklevel=2,
-    )
-
-
 # Hydrate .env before mirroring docker-compose defaults so file values win.
 _hydrate_local_env()
 # Mirror the docker-compose defaults before importing the canonical settings.
@@ -321,7 +277,6 @@ os.environ.setdefault("DJANGO_MEDIA_ROOT", str(DATA_DIR / "media"))
 # Try to ensure the dev hostname resolves locally without manual tweaks.
 _ensure_dev_hostname_in_hosts(DEV_HOSTNAME)
 _prefer_local_storage_dirs_when_needed()
-_fallback_to_sqlite_when_compose_db_is_unavailable()
 
 # Ensure the backing directories exist so collectstatic/media writes behave the
 # same way they do in the container.

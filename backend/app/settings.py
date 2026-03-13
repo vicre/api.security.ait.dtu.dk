@@ -448,53 +448,12 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'app.wsgi.application'
 
-POSTGRES_REQUIRED_ENV_VARS = (
-    'POSTGRES_DB',
-    'POSTGRES_USER',
-    'POSTGRES_PASSWORD',
-    'POSTGRES_HOST',
-)
-
-postgres_configured = all(os.getenv(var) for var in POSTGRES_REQUIRED_ENV_VARS)
-postgres_dependencies_available = False
-
-if postgres_configured:
-    try:  # Prefer psycopg3 if available
-        import psycopg  # type: ignore  # noqa: F401
-    except ImportError:
-        try:
-            import psycopg2  # type: ignore  # noqa: F401
-        except ImportError:
-            postgres_dependencies_available = False
-        else:
-            postgres_dependencies_available = True
-    else:
-        postgres_dependencies_available = True
-
-if postgres_configured:
-    if not postgres_dependencies_available:
-        raise ImproperlyConfigured(
-            'PostgreSQL settings detected but psycopg/psycopg2 is not installed. '
-            'Install the dependency or clear the POSTGRES_* environment variables.'
-        )
-
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.getenv('POSTGRES_DB'),
-            'USER': os.getenv('POSTGRES_USER'),
-            'PASSWORD': os.getenv('POSTGRES_PASSWORD'),
-            'HOST': os.getenv('POSTGRES_HOST'),
-            'PORT': os.getenv('POSTGRES_PORT', '5432'),
-        }
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
-else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
-    }
+}
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
