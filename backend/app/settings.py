@@ -115,7 +115,7 @@ def _ensure_storage_dir(
         f"No writable {description} directory configured via {env_var_name}."
     )
 
-custom_env_file = os.getenv("DJANGO_ENV_FILE")
+custom_env_file = os.getenv("DJANGO_ENV_FILE") or os.getenv("APP_ENV_FILE")
 candidate_env_paths = []
 
 if custom_env_file:
@@ -134,11 +134,11 @@ candidate_env_paths.extend(
 
 for env_path in candidate_env_paths:
     if env_path and env_path.exists():
-        load_dotenv(dotenv_path=env_path)
+        load_dotenv(dotenv_path=env_path, override=True)
         break
 else:
     # Fall back to standard .env discovery (no-op if the file does not exist).
-    load_dotenv()
+    load_dotenv(override=True)
 
 # settings.py
 
@@ -254,9 +254,21 @@ _azure_authority = (
     or (f'https://login.microsoftonline.com/{_azure_tenant_id}' if _azure_tenant_id else 'https://login.microsoftonline.com/common')
 ).rstrip('/')
 
-if not _azure_tenant_id:
+parsed_authority = urlparse(_azure_authority)
+authority_host = (parsed_authority.netloc or '').lower()
+authority_path = (parsed_authority.path or '').strip('/')
+
+# Accept a bare Microsoft login host in env vars and complete it with the tenant/common segment.
+if authority_host == 'login.microsoftonline.com' and not authority_path:
+    _azure_authority = (
+        f'https://login.microsoftonline.com/{_azure_tenant_id}'
+        if _azure_tenant_id
+        else 'https://login.microsoftonline.com/common'
+    )
     parsed_authority = urlparse(_azure_authority)
     authority_path = (parsed_authority.path or '').strip('/')
+
+if not _azure_tenant_id:
     authority_tenant = authority_path.split('/', 1)[0] if authority_path else ''
     if authority_tenant and authority_tenant.lower() not in {'common', 'organizations', 'consumers'}:
         _azure_tenant_id = authority_tenant
