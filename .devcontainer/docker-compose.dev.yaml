@@ -30,6 +30,8 @@ services:
       - ../:/workspace
       - static_data:/data/static
       - media_data:/data/media
+    ports:
+      - "80:80"
     networks:
       - internal
 
