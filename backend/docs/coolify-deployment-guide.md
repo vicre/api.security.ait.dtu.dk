@@ -44,6 +44,8 @@ On startup, `backend/docker/entrypoint.sh` will:
 4. Start Gunicorn on port `8121`
 
 Traefik labels route traffic using `SERVICE_FQDN_WEB` to the web container.
+The router must target Traefik's `https` entrypoint because the Coolify proxy
+defines entrypoints as `http` and `https`, not `web` and `websecure`.
 
 ## 4. First Deployment Checklist
 
@@ -51,6 +53,7 @@ Traefik labels route traffic using `SERVICE_FQDN_WEB` to the web container.
 2. Deploy.
 3. Verify health endpoint: `/healthz/`.
 4. Check application logs for migration/static output.
+5. Confirm the `web` container reports healthy; the compose file probes `http://127.0.0.1:8121/healthz/`.
 
 ## 5. Local Production-like Test
 
