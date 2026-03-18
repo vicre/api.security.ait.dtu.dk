@@ -43,7 +43,6 @@ class AzureAdTokenAuthentication(authentication.BaseAuthentication):
     def _decode_claims(self, token: str) -> dict:
         audiences = tuple(getattr(settings, "AZURE_AD_ALLOWED_AUDIENCES", ()) or ())
         issuers = tuple(getattr(settings, "AZURE_AD_ALLOWED_ISSUERS", ()) or ())
-        leeway = int(getattr(settings, "AZURE_AD_LEEWAY_SECONDS", 120) or 120)
         tenant_id = (getattr(settings, "AZURE_AD", {}) or {}).get("TENANT_ID") or os.getenv("AZURE_TENANT_ID")
 
         if _as_bool(os.getenv("AZURE_AD_BEARER_SKIP_SIGNATURE_VALIDATION")):
