@@ -70,14 +70,13 @@ services:
     networks:
       - internal
       - proxy
-
   db:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-app}
       POSTGRES_USER: ${POSTGRES_USER:-app}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-please-change-me}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -88,16 +87,13 @@ services:
       start_period: 15s
     networks:
       - internal
-
 networks:
   internal:
     driver: bridge
   proxy:
     name: ${TRAEFIK_NETWORK:-coolify}
     external: ${TRAEFIK_NETWORK_EXTERNAL:-true}
-
 volumes:
   postgres_data:
   static_data:
   media_data:
-  

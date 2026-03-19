@@ -234,7 +234,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware'
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'myview.middleware.AccessControlMiddleware', # My own middleware the defines which users can access what
 ]
 
@@ -247,7 +247,13 @@ TEMPLATES = [
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
         'DIRS': [os.path.join(BASE_DIR, 'templates')], # Located at the project 
         'APP_DIRS': True,
-
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.request',  # required for admin
+                'django.contrib.auth.context_processors.auth',  # REQUIRED for your error
+                'django.contrib.messages.context_processors.messages',
+            ],
+        }
     }
 ]
 
@@ -259,3 +265,7 @@ LANGUAGE_CODE = 'da-dk'
 # If the field 'id' is not defined in a model, then this will be the default type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# Static files (CSS, JavaScript, Images)
+# https://docs.djangoproject.com/en/5.2/howto/static-files/
+
+STATIC_URL = 'static/'
