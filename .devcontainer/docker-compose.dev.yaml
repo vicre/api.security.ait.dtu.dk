@@ -35,14 +35,11 @@ services:
     networks:
       - internal
 
-
-
 networks:
   internal:
     driver: bridge
 
 volumes:
-
   static_data:
     driver: local
   media_data:
