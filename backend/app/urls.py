@@ -21,11 +21,15 @@ from django.conf import settings
 from django.conf.urls.static import static
 from .views import msal_callback, msal_login, msal_director, msal_logout, health_check
 from dotenv import load_dotenv, find_dotenv
-from django.views.static import serve
-from django.urls import re_path
+from django.shortcuts import redirect
 load_dotenv(dotenv_path=find_dotenv())
 
 admin_path = settings.ADMIN_URL_PATH
+
+
+def favicon_redirect(_request):
+    favicon_url = f"/{settings.STATIC_URL.strip('/')}/myview/img/favicon.ico"
+    return redirect(favicon_url, permanent=True)
 
 
 
@@ -37,11 +41,7 @@ urlpatterns = [
     path("logout/", msal_logout, name="msal_logout"),
     path("healthz/", health_check, name="health_check"),
 
-    #  favicon.ico
-    re_path(r'^favicon\.ico$', serve, {
-    'path': 'myview/img/favicon.ico',
-    'document_root': settings.STATIC_ROOT,
-    }),
+    path('favicon.ico', favicon_redirect, name='favicon'),
 
     path(admin_path, admin.site.urls, name='admin-panel'),
     path('admin/', RedirectView.as_view(pattern_name='admin-panel', permanent=False)),

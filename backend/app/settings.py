@@ -269,3 +269,31 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+
+
+def _resolve_azure_authority() -> str | None:
+
+    tenant_id = (os.getenv('AZURE_TENANT_ID') or '').strip()
+    configured = (os.getenv('AIT_SOC_MSAL_VICRE_AUTHORITY') or '').strip()
+
+    if not configured:
+        return f'https://login.microsoftonline.com/{tenant_id}' if tenant_id else None
+
+    if '/common' in configured.lower() and tenant_id:
+        return f'https://login.microsoftonline.com/{tenant_id}'
+
+    return configured
+
+
+AZURE_AD = {
+    'TENANT_ID': os.getenv('AZURE_TENANT_ID'),
+    'CLIENT_ID': os.getenv('AIT_SOC_MSAL_VICRE_CLIENT_ID'),
+    'CLIENT_SECRET': os.getenv('AIT_SOC_MSAL_VICRE_MSAL_SECRET_VALUE'),
+    # Prefer explicit override, fall back to SERVICE_URL_WEB + /auth/callback
+    'REDIRECT_URI': os.getenv('AZURE_REDIRECT_URI'),
+    'AUTHORITY': f'https://login.microsoftonline.com/{os.getenv('AZURE_TENANT_ID')}',
+    'SCOPE': ['User.Read']  # Add other scopes if needed
+}
+
+
+
