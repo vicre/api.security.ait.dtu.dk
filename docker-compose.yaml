@@ -61,12 +61,12 @@ services:
         start_period: 30s
     labels:
       - traefik.enable=true
-      - traefik.docker.network=${TRAEFIK_NETWORK:-coolify}
-      - traefik.http.routers.${TRAEFIK_ROUTER_NAME:-api_security}.rule=${TRAEFIK_ROUTER_RULE:-Host(`${SERVICE_FQDN_WEB:-api.security.ait.dtu.dk}`)}
-      - traefik.http.routers.${TRAEFIK_ROUTER_NAME:-api_security}.entrypoints=https
-      - traefik.http.routers.${TRAEFIK_ROUTER_NAME:-api_security}.tls=true
-      - traefik.http.routers.${TRAEFIK_ROUTER_NAME:-api_security}.service=${TRAEFIK_SERVICE_NAME:-api_security}
-      - traefik.http.services.${TRAEFIK_SERVICE_NAME:-api_security}.loadbalancer.server.port=8121
+      - traefik.docker.network=coolify
+      - traefik.http.routers.api_security.entrypoints=https
+      - traefik.http.routers.api_security.rule=Host(`api.security.ait.dtu.dk`)
+      - traefik.http.routers.api_security.service=api_security
+      - traefik.http.routers.api_security.tls=true
+      - traefik.http.services.api_security.loadbalancer.server.port=8121
     networks:
       - internal
       - proxy
